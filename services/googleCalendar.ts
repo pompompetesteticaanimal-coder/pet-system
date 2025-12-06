@@ -1,10 +1,11 @@
 
 declare var google: any;
 
-// ATENÇÃO: Substitua pelo seu Client ID real do Google Cloud Console
-// Para rodar localmente, certifique-se de adicionar http://localhost:3000 (ou sua porta) nas origens JS autorizadas no console do Google.
-const CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE'; 
-// Adicionado escopo para ler planilhas
+// Função para buscar o ID salvo ou usar o placeholder
+const getClientId = () => {
+  return localStorage.getItem('petgestor_client_id') || 'YOUR_GOOGLE_CLIENT_ID_HERE';
+};
+
 const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets.readonly';
 
 export const googleService = {
@@ -12,8 +13,16 @@ export const googleService = {
   
   init: (callback: (tokenResponse: any) => void) => {
     if (typeof google !== 'undefined' && google.accounts) {
+      const clientId = getClientId();
+      
+      // Só inicializa se tiver um ID que não seja o placeholder padrão
+      if (clientId === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+        console.warn('Google Client ID não configurado.');
+        return;
+      }
+
       googleService.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
+        client_id: clientId,
         scope: SCOPES,
         callback: callback,
       });
@@ -23,10 +32,18 @@ export const googleService = {
   },
 
   login: () => {
+    // Verifica novamente antes de tentar logar
+    const clientId = getClientId();
+    if (clientId === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+        alert('Por favor, vá em Clientes > Configurações e configure seu ID do Cliente Google (OAuth) primeiro.');
+        return;
+    }
+
     if (googleService.tokenClient) {
       googleService.tokenClient.requestAccessToken();
     } else {
-      alert('Serviço de login Google não inicializado. Verifique sua conexão.');
+      // Tenta reinicializar caso o script tenha carregado depois
+      alert('Serviço Google não está pronto ou ID inválido. Recarregue a página.');
     }
   },
 
@@ -82,7 +99,6 @@ export const googleService = {
     }
   },
 
-  // Nova função para ler dados da planilha
   getSheetValues: async (accessToken: string, spreadsheetId: string, range: string) => {
     try {
       const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`, {
