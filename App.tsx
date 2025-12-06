@@ -139,6 +139,9 @@ const ClientManager: React.FC<{
       const clientsMap = new Map<string, Client>();
 
       // Skip header row
+      // Expected Order from Google Forms:
+      // A: Timestamp, B: Nome, C: Telefone, D: Endereço, E: Complemento
+      // F: Pet Nome, G: Pet Idade, H: Pet Sexo, I: Pet Raça, J: Pet Porte, K: Pet Pelagem, L: Obs
       rows.slice(1).forEach((row: string[], index: number) => {
         const [
           timestamp, 
