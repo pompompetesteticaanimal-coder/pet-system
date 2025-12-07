@@ -8,9 +8,9 @@ import { Client, Service, Appointment, ViewState, Pet, GoogleUser } from './type
 import { 
   Plus, Trash2, Check, X, 
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
-  RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
+  ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
   ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
-  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle
+  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle, Loader2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -482,15 +482,13 @@ const PaymentManager: React.FC<{
 // 4. Client Manager (RESPONSIVE CARDS)
 const ClientManager: React.FC<{
   clients: Client[];
-  onSyncClients: (newClients: Client[]) => void;
   onDeleteClient: (id: string) => void;
   googleUser: GoogleUser | null;
   accessToken: string | null;
-}> = ({ clients, onSyncClients, onDeleteClient, googleUser, accessToken }) => {
+}> = ({ clients, onDeleteClient, googleUser, accessToken }) => {
   const [showConfig, setShowConfig] = useState(false);
   const [sheetId, setSheetId] = useState(localStorage.getItem('petgestor_sheet_id') || PREDEFINED_SHEET_ID);
   const [formUrl, setFormUrl] = useState(localStorage.getItem('petgestor_form_url') || PREDEFINED_FORM_URL);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const sortedClients = [...clients].sort((a, b) => {
@@ -510,97 +508,6 @@ const ClientManager: React.FC<{
     localStorage.setItem('petgestor_sheet_id', sheetId);
     localStorage.setItem('petgestor_form_url', formUrl);
     setShowConfig(false);
-  };
-
-  const handleSync = async () => {
-    if (!accessToken) {
-      alert("Sessão expirada. Recarregue a página.");
-      return;
-    }
-    if (!sheetId) {
-      alert("ID da Planilha não configurado.");
-      setShowConfig(true);
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      const rows = await googleService.getSheetValues(accessToken, sheetId, 'CADASTRO!A:O'); 
-      
-      if (!rows || rows.length < 2) {
-        alert("Planilha vazia ou aba 'CADASTRO' não encontrada.");
-        setIsSyncing(false);
-        return;
-      }
-
-      const clientsMap = new Map<string, Client>();
-
-      rows.slice(1).forEach((row: string[], index: number) => {
-        const timestamp = row[1];
-        const clientName = row[3];
-        const phone = row[4];
-        const address = row[5];
-        const complement = row[11];
-        
-        const petName = row[6];
-        const petBreed = row[7];
-        const petSize = row[8];
-        const petCoat = row[9];
-        const petNotes = row[10];
-        const petAge = row[12];
-        const petGender = row[13];
-        
-        if (!clientName || !phone) return;
-
-        const cleanPhone = phone.replace(/\D/g, '');
-        
-        if (!clientsMap.has(cleanPhone)) {
-          let createdIso = new Date().toISOString(); 
-          try {
-             if(timestamp) {
-                const [datePart, timePart] = timestamp.split(' ');
-                const [day, month, year] = datePart.split('/');
-                if(year && month && day) createdIso = new Date(`${year}-${month}-${day}T${timePart || '00:00'}`).toISOString();
-             }
-          } catch(e) {}
-
-          clientsMap.set(cleanPhone, {
-            id: cleanPhone,
-            name: clientName,
-            phone: phone,
-            address: address || '',
-            complement: complement || '',
-            createdAt: createdIso,
-            pets: []
-          });
-        }
-
-        const client = clientsMap.get(cleanPhone)!;
-        
-        if (petName) {
-          client.pets.push({
-            id: `${cleanPhone}_p_${index}`,
-            name: petName,
-            breed: petBreed || 'SRD',
-            age: petAge || '',
-            gender: petGender || '',
-            size: petSize || '',
-            coat: petCoat || '',
-            notes: petNotes || ''
-          });
-        }
-      });
-
-      const newClientList = Array.from(clientsMap.values());
-      onSyncClients(newClientList);
-      alert(`${newClientList.length} clientes sincronizados com sucesso da aba CADASTRO!`);
-
-    } catch (error) {
-      console.error(error);
-      alert("Erro ao sincronizar. Verifique se o ID da planilha está correto e permissões.");
-    } finally {
-      setIsSyncing(false);
-    }
   };
 
   const ClientCard = ({ client }: { client: Client }) => (
@@ -652,10 +559,6 @@ const ClientManager: React.FC<{
                   <ExternalLink size={16} /> Formulário
                 </a>
              )}
-             <button onClick={handleSync} disabled={isSyncing} className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition text-sm flex-1 md:flex-none justify-center disabled:opacity-70">
-                <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} /> 
-                {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
-             </button>
              <button onClick={() => setShowConfig(!showConfig)} className="bg-gray-200 hover:bg-gray-300 text-gray-700 p-2 rounded-lg">
                 <Settings size={20} />
              </button>
@@ -697,7 +600,7 @@ const ClientManager: React.FC<{
       {clients.length === 0 && !showConfig ? (
           <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
               <p className="text-gray-500 mb-2">Nenhum cliente encontrado.</p>
-              <p className="text-sm text-gray-400">Clique em "Sincronizar" para carregar.</p>
+              <p className="text-sm text-gray-400">Os dados serão sincronizados automaticamente.</p>
           </div>
       ) : (
         <>
@@ -770,7 +673,6 @@ const ServiceManager: React.FC<{
     const [category, setCategory] = useState<'principal' | 'adicional'>('principal');
     const [size, setSize] = useState('Todos');
     const [coat, setCoat] = useState('Todos');
-    const [isSyncing, setIsSyncing] = useState(false);
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{x: number, y: number, id: string} | null>(null);
@@ -778,6 +680,7 @@ const ServiceManager: React.FC<{
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editService, setEditService] = useState<Service | null>(null);
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     const handleAdd = () => {
         if(name && price) {
@@ -794,71 +697,6 @@ const ServiceManager: React.FC<{
             setName(''); setPrice(''); setDesc('');
         }
     }
-
-    const handleSync = async () => {
-        if (!accessToken || !sheetId) {
-            alert("Erro: Faça login e configure a planilha primeiro.");
-            return;
-        }
-
-        setIsSyncing(true);
-        try {
-            // Lendo a aba "Serviço" colunas A até E
-            const rows = await googleService.getSheetValues(accessToken, sheetId, 'Serviço!A:E');
-            
-            if(!rows || rows.length < 2) {
-                alert("Aba 'Serviço' vazia ou não encontrada. Verifique se o nome da aba está correto (sem 's' no final).");
-                return;
-            }
-
-            const newServices: Service[] = [];
-            
-            rows.slice(1).forEach((row: string[], idx: number) => {
-                const sName = row[0];
-                const sCat = (row[1] || 'principal').toLowerCase().includes('adicional') ? 'adicional' : 'principal';
-                // Regra: Se estiver vazio, considera "Todos"
-                const sSize = row[2] && row[2].trim() !== '' ? row[2] : 'Todos';
-                const sCoat = row[3] && row[3].trim() !== '' ? row[3] : 'Todos';
-                
-                // --- FIX FOR NAN PRICE ---
-                let rawPrice = row[4] || '0';
-                // Remove 'R$', spaces, and treat comma as dot for JS parsing
-                // E.g. "R$ 50,00" -> "50.00"
-                rawPrice = rawPrice.replace(/[^\d,.-]/g, '').trim(); 
-                if (rawPrice.includes(',')) {
-                    rawPrice = rawPrice.replace(/\./g, '').replace(',', '.');
-                }
-                const sPrice = parseFloat(rawPrice);
-                const finalPrice = isNaN(sPrice) ? 0 : sPrice;
-
-                if (sName) {
-                    newServices.push({
-                        id: `sheet_svc_${idx}_${Date.now()}`,
-                        name: sName,
-                        category: sCat as any,
-                        targetSize: sSize,
-                        targetCoat: sCoat,
-                        price: finalPrice,
-                        description: `Importado da planilha`,
-                        durationMin: 60
-                    });
-                }
-            });
-
-            if (newServices.length > 0) {
-                onSyncServices(newServices);
-                alert(`${newServices.length} serviços importados com sucesso! Preços atualizados.`);
-            } else {
-                alert("Nenhum serviço válido encontrado na planilha.");
-            }
-
-        } catch (e) {
-            console.error(e);
-            alert("Erro ao sincronizar serviços. Verifique a aba 'Serviço' na planilha.");
-        } finally {
-            setIsSyncing(false);
-        }
-    };
 
     const handleDeleteSheetService = async (serviceId: string) => {
         if (!serviceId.includes('sheet_svc_')) {
@@ -905,7 +743,7 @@ const ServiceManager: React.FC<{
         }
 
         try {
-            setIsSyncing(true);
+            setIsSavingEdit(true);
             const parts = editService.id.split('_');
             const index = parseInt(parts[2]);
             const rowNumber = index + 2;
@@ -931,7 +769,7 @@ const ServiceManager: React.FC<{
             console.error(e);
             alert("Erro ao atualizar planilha.");
         } finally {
-            setIsSyncing(false);
+            setIsSavingEdit(false);
         }
     }
 
@@ -947,14 +785,7 @@ const ServiceManager: React.FC<{
         <div className="space-y-6">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h2 className="text-2xl font-bold text-gray-800">Catálogo de Serviços</h2>
-                <button 
-                    onClick={handleSync} 
-                    disabled={isSyncing}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow-sm transition disabled:opacity-70"
-                >
-                    <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
-                    {isSyncing ? 'Importando...' : 'Sincronizar da Planilha'}
-                </button>
+                {/* Sync Button Removed - Auto Sync */}
              </div>
 
              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hidden md:block">
@@ -1122,8 +953,8 @@ const ServiceManager: React.FC<{
 
                         <div className="flex justify-end gap-3 mt-6">
                             <button onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
-                            <button onClick={handleSaveEdit} disabled={isSyncing} className="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700 font-bold disabled:opacity-50">
-                                {isSyncing ? 'Salvando...' : 'Salvar Alterações'}
+                            <button onClick={handleSaveEdit} disabled={isSavingEdit} className="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700 font-bold disabled:opacity-50">
+                                {isSavingEdit ? 'Salvando...' : 'Salvar Alterações'}
                             </button>
                         </div>
                     </div>
@@ -1143,10 +974,8 @@ const ScheduleManager: React.FC<{
   onAdd: (a: Appointment, client: Client, pet: Pet, services: Service[]) => void;
   onUpdateStatus: (id: string, status: Appointment['status']) => void;
   onDelete: (id: string) => void;
-  onSync: () => void;
   googleUser: GoogleUser | null;
-  isSyncing: boolean;
-}> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete, onSync, googleUser, isSyncing }) => {
+}> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete, googleUser }) => {
     const [view, setView] = useState<CalendarViewType>('week');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [showModal, setShowModal] = useState(false);
@@ -1314,9 +1143,7 @@ const ScheduleManager: React.FC<{
                         </button>
                     ))}
                  </div>
-                 <button onClick={onSync} disabled={isSyncing} className="bg-white border border-brand-200 text-brand-600 p-2 rounded-lg hover:bg-brand-50 disabled:opacity-50 shrink-0">
-                     <RefreshCw size={20} className={isSyncing ? "animate-spin" : ""} />
-                 </button>
+                 {/* Refresh Button Removed */}
                  <button onClick={() => openNewModal()} className="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 flex items-center gap-2 font-bold shrink-0">
                     <Plus size={18} /> Novo
                  </button>
@@ -1694,7 +1521,7 @@ const App: React.FC = () => {
   const [isConfigured, setIsConfigured] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isGlobalLoading, setIsGlobalLoading] = useState(false);
 
   const SHEET_ID = localStorage.getItem('petgestor_sheet_id') || PREDEFINED_SHEET_ID;
 
@@ -1721,6 +1548,8 @@ const App: React.FC = () => {
             // Restore Session
             setAccessToken(storedToken);
             setGoogleUser(JSON.parse(storedUser));
+            // Trigger auto sync on restore
+            performFullSync(storedToken);
         } else {
             // Expired: Clear storage
             localStorage.removeItem(STORAGE_KEY_TOKEN);
@@ -1731,6 +1560,23 @@ const App: React.FC = () => {
 
     initAuthLogic();
   }, []);
+
+  const performFullSync = async (token: string) => {
+      if (!SHEET_ID) return;
+      setIsGlobalLoading(true);
+      try {
+          // 1. Sync Services First (needed for appointment pricing)
+          await handleSyncServices(token, true);
+          // 2. Sync Clients (needed for linking appointments)
+          await handleSyncClients(token, true);
+          // 3. Sync Appointments
+          await handleSyncAppointments(token, true);
+      } catch (e) {
+          console.error("Auto Sync Failed", e);
+      } finally {
+          setIsGlobalLoading(false);
+      }
+  }
 
   const initAuthLogic = () => {
     if ((window as any).google) {
@@ -1751,6 +1597,9 @@ const App: React.FC = () => {
                     setGoogleUser(user);
                     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
                 }
+
+                // Trigger Auto Sync on Login
+                performFullSync(token);
             }
         });
     } else {
@@ -1779,9 +1628,88 @@ const App: React.FC = () => {
       setGoogleUser(null);
   };
 
-  const handleSyncClients = (newClients: Client[]) => {
-      setClients(newClients);
-      db.saveClients(newClients);
+  const handleSyncClients = async (token: string, silent = false) => {
+    const tokenToUse = token;
+    if (!tokenToUse || !SHEET_ID) {
+      if(!silent) alert("Erro: Login ou ID da Planilha faltando.");
+      return;
+    }
+
+    try {
+      const rows = await googleService.getSheetValues(tokenToUse, SHEET_ID, 'CADASTRO!A:O'); 
+      
+      if (!rows || rows.length < 2) {
+        if(!silent) alert("Planilha vazia ou aba 'CADASTRO' não encontrada.");
+        return;
+      }
+
+      const clientsMap = new Map<string, Client>();
+
+      rows.slice(1).forEach((row: string[], index: number) => {
+        const timestamp = row[1];
+        const clientName = row[3];
+        const phone = row[4];
+        const address = row[5];
+        const complement = row[11];
+        
+        const petName = row[6];
+        const petBreed = row[7];
+        const petSize = row[8];
+        const petCoat = row[9];
+        const petNotes = row[10];
+        const petAge = row[12];
+        const petGender = row[13];
+        
+        if (!clientName || !phone) return;
+
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        if (!clientsMap.has(cleanPhone)) {
+          let createdIso = new Date().toISOString(); 
+          try {
+             if(timestamp) {
+                const [datePart, timePart] = timestamp.split(' ');
+                const [day, month, year] = datePart.split('/');
+                if(year && month && day) createdIso = new Date(`${year}-${month}-${day}T${timePart || '00:00'}`).toISOString();
+             }
+          } catch(e) {}
+
+          clientsMap.set(cleanPhone, {
+            id: cleanPhone,
+            name: clientName,
+            phone: phone,
+            address: address || '',
+            complement: complement || '',
+            createdAt: createdIso,
+            pets: []
+          });
+        }
+
+        const client = clientsMap.get(cleanPhone)!;
+        
+        if (petName) {
+          client.pets.push({
+            id: `${cleanPhone}_p_${index}`,
+            name: petName,
+            breed: petBreed || 'SRD',
+            age: petAge || '',
+            gender: petGender || '',
+            size: petSize || '',
+            coat: petCoat || '',
+            notes: petNotes || ''
+          });
+        }
+      });
+
+      const newClientList = Array.from(clientsMap.values());
+      setClients(newClientList);
+      db.saveClients(newClientList);
+      if(!silent) alert(`${newClientList.length} clientes sincronizados com sucesso da aba CADASTRO!`);
+
+    } catch (error) {
+      console.error(error);
+      if(!silent) alert("Erro ao sincronizar. Verifique permissões.");
+    }
   };
   
   const handleDeleteClient = (id: string) => {
@@ -1801,9 +1729,63 @@ const App: React.FC = () => {
     db.saveServices(updated);
   }
 
-  const handleSyncServices = (newServices: Service[]) => {
-      setServices(newServices);
-      db.saveServices(newServices);
+  const handleSyncServices = async (token: string, silent = false) => {
+      const tokenToUse = token;
+      if (!tokenToUse || !SHEET_ID) {
+          if(!silent) alert("Erro: Login ou ID da Planilha faltando.");
+          return;
+      }
+
+      try {
+          const rows = await googleService.getSheetValues(tokenToUse, SHEET_ID, 'Serviço!A:E');
+          
+          if(!rows || rows.length < 2) {
+              if(!silent) alert("Aba 'Serviço' vazia ou não encontrada.");
+              return;
+          }
+
+          const newServices: Service[] = [];
+          
+          rows.slice(1).forEach((row: string[], idx: number) => {
+              const sName = row[0];
+              const sCat = (row[1] || 'principal').toLowerCase().includes('adicional') ? 'adicional' : 'principal';
+              const sSize = row[2] && row[2].trim() !== '' ? row[2] : 'Todos';
+              const sCoat = row[3] && row[3].trim() !== '' ? row[3] : 'Todos';
+              
+              let rawPrice = row[4] || '0';
+              rawPrice = rawPrice.replace(/[^\d,.-]/g, '').trim(); 
+              if (rawPrice.includes(',')) {
+                  rawPrice = rawPrice.replace(/\./g, '').replace(',', '.');
+              }
+              const sPrice = parseFloat(rawPrice);
+              const finalPrice = isNaN(sPrice) ? 0 : sPrice;
+
+              if (sName) {
+                  newServices.push({
+                      id: `sheet_svc_${idx}_${Date.now()}`,
+                      name: sName,
+                      category: sCat as any,
+                      targetSize: sSize,
+                      targetCoat: sCoat,
+                      price: finalPrice,
+                      description: `Importado da planilha`,
+                      durationMin: 60
+                  });
+              }
+          });
+
+          if (newServices.length > 0) {
+              setServices(newServices);
+              db.saveServices(newServices);
+              if(!silent) alert(`${newServices.length} serviços importados com sucesso!`);
+          } else {
+              if(!silent) alert("Nenhum serviço válido encontrado na planilha.");
+          }
+
+      } catch (e) {
+          console.error(e);
+          if(!silent) alert("Erro ao sincronizar serviços. Verifique a aba 'Serviço' na planilha.");
+      }
   }
 
   const handleUpdateApp = (updatedApp: Appointment) => {
@@ -1813,30 +1795,29 @@ const App: React.FC = () => {
   };
 
   // Sync APPOINTMENTS (Read from Sheet)
-  const handleSyncAppointments = async () => {
-      if (!accessToken || !SHEET_ID) return;
-      setIsSyncing(true);
+  const handleSyncAppointments = async (token: string, silent = false) => {
+      const tokenToUse = token;
+      if (!tokenToUse || !SHEET_ID) return;
+      
       try {
           // A:O was original, now need to read up to S (Paid Amount = R/17, Method = S/18)
-          const rows = await googleService.getSheetValues(accessToken, SHEET_ID, 'Agendamento!A:S');
+          const rows = await googleService.getSheetValues(tokenToUse, SHEET_ID, 'Agendamento!A:S');
           if(!rows || rows.length < 2) {
-              alert('Aba Agendamento vazia ou não encontrada.');
-              setIsSyncing(false);
+              if(!silent) alert('Aba Agendamento vazia ou não encontrada.');
               return;
           }
 
           const loadedApps: Appointment[] = [];
           const newTempClients: Client[] = [];
-          const existingClientIds = new Set(clients.map(c => c.id));
+          // Get clients from state, but since state might not be updated inside this closure during full sync, 
+          // we should trust db.getClients if this runs standalone, 
+          // BUT during performFullSync, we await handleSyncClients just before, so state update might be pending.
+          // Best practice: Read from DB to be safe if sequential sync just updated DB.
+          const currentClients = db.getClients(); 
+          
+          const existingClientIds = new Set(currentClients.map(c => c.id));
           
           rows.slice(1).forEach((row: string[], idx: number) => {
-              // COLUMNS:
-              // 0: Pet, 1: Client, 2: Phone, 3: Address, 4: Breed, 5: Size, 6: Coat
-              // 7: Service, 8: Add1, 9: Add2, 10: Add3, 11: Date, 12: Time, 13: Obs, 14: Duration
-              // 15, 16 ...
-              // 17 (R): Paid Amount
-              // 18 (S): Payment Method
-
               const petName = row[0];
               const clientName = row[1];
               const clientPhone = row[2] || '';
@@ -1861,12 +1842,10 @@ const App: React.FC = () => {
               } catch(e) {}
 
               // Find or Create Client
-              // Priority: Match by ID (Phone) -> Match by Name -> Create Temp
               const cleanPhone = clientPhone.replace(/\D/g, '') || `temp_${idx}`;
-              let client = clients.find(c => c.id === cleanPhone) || clients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone);
+              let client = currentClients.find(c => c.id === cleanPhone) || currentClients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone);
 
               if (!client) {
-                  // Create Temp Client if not found to ensure appointment shows up
                   client = {
                       id: cleanPhone,
                       name: clientName,
@@ -1893,8 +1872,9 @@ const App: React.FC = () => {
                   client.pets.push(pet);
               }
 
-              // Find Service
-              const service = services.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || services[0];
+              // Find Service (Using services from DB to ensure up-to-date)
+              const currentServices = db.getServices();
+              const service = currentServices.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || currentServices[0];
               
               // Find Additional Services
               const addServiceIds: string[] = [];
@@ -1902,7 +1882,7 @@ const App: React.FC = () => {
               
               addSvcNames.forEach(name => {
                   if (name) {
-                      const foundSvc = services.find(s => s.name.toLowerCase() === name.toLowerCase().trim());
+                      const foundSvc = currentServices.find(s => s.name.toLowerCase() === name.toLowerCase().trim());
                       if (foundSvc) addServiceIds.push(foundSvc.id);
                   }
               });
@@ -1932,7 +1912,7 @@ const App: React.FC = () => {
           });
           
           if (newTempClients.length > 0) {
-              const updatedClients = [...clients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))];
+              const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))];
               setClients(updatedClients);
               db.saveClients(updatedClients);
           }
@@ -1940,16 +1920,14 @@ const App: React.FC = () => {
           if(loadedApps.length > 0) {
               setAppointments(loadedApps);
               db.saveAppointments(loadedApps);
-              alert(`${loadedApps.length} agendamentos carregados!`);
+              if(!silent) alert(`${loadedApps.length} agendamentos carregados!`);
           } else {
-              alert('Nenhum agendamento válido encontrado.');
+              if(!silent) alert('Nenhum agendamento válido encontrado.');
           }
 
       } catch (error) {
           console.error(error);
-          alert('Erro ao sincronizar agendamentos. Verifique se a data está em DD/MM/AAAA.');
-      } finally {
-          setIsSyncing(false);
+          if(!silent) alert('Erro ao sincronizar agendamentos. Verifique se a data está em DD/MM/AAAA.');
       }
   };
 
@@ -2048,11 +2026,20 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <Layout currentView={currentView} setView={setCurrentView} googleUser={googleUser} onLogin={() => googleService.login()} onLogout={handleLogout}>
+        {/* GLOBAL LOADING OVERLAY */}
+        {isGlobalLoading && (
+            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[60] flex flex-col items-center justify-center">
+                <Loader2 className="w-12 h-12 text-brand-600 animate-spin mb-4" />
+                <h3 className="text-xl font-bold text-gray-800">Sincronizando dados...</h3>
+                <p className="text-gray-500">Buscando Clientes, Serviços e Agendamentos atualizados.</p>
+            </div>
+        )}
+
         {currentView === 'dashboard' && <Dashboard appointments={appointments} services={services} clients={clients} />}
         {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} accessToken={accessToken} sheetId={SHEET_ID} />}
-        {currentView === 'clients' && <ClientManager clients={clients} onSyncClients={handleSyncClients} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
-        {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={handleSyncServices} accessToken={accessToken} sheetId={SHEET_ID} />}
-        {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onUpdateStatus={handleUpdateAppStatus} onDelete={handleDeleteApp} onSync={handleSyncAppointments} googleUser={googleUser} isSyncing={isSyncing} />}
+        {currentView === 'clients' && <ClientManager clients={clients} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
+        {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => handleSyncServices(accessToken!, false)} accessToken={accessToken} sheetId={SHEET_ID} />}
+        {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onUpdateStatus={handleUpdateAppStatus} onDelete={handleDeleteApp} googleUser={googleUser} />}
       </Layout>
     </HashRouter>
   );
