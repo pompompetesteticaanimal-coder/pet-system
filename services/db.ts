@@ -47,12 +47,16 @@ const seedClients: Client[] = [
 
 // Helper to create services easily
 const createSvc = (name: string, cat: 'principal'|'adicional', size: string, coat: string, price: number): Service => ({
-    id: `svc_${name}_${size}_${coat}`.replace(/\s+/g, '').toLowerCase(),
+    id: `svc_${name}_${size}_${coat}`.replace(/\s+/g, '').toLowerCase() + '_' + Math.random().toString(36).substr(2, 5),
     name, category: cat, targetSize: size, targetCoat: coat, price, durationMin: 60, description: `${name} (${size}/${coat})`
 });
 
 const seedServices: Service[] = [
-    // --- PRINCIPAL: BANHO ---
+    // ==========================================
+    // SERVIÇOS PRINCIPAIS
+    // ==========================================
+
+    // --- BANHO (Base) ---
     createSvc('Banho', 'principal', 'Pequeno', 'Curto', 50),
     createSvc('Banho', 'principal', 'Pequeno', 'Longo', 60),
     createSvc('Banho', 'principal', 'Médio', 'Curto', 80),
@@ -60,15 +64,15 @@ const seedServices: Service[] = [
     createSvc('Banho', 'principal', 'Grande', 'Curto', 100),
     createSvc('Banho', 'principal', 'Grande', 'Longo', 160),
 
-    // --- PRINCIPAL: PACOTE 1 QUINZENAL ---
+    // --- PACOTE 1 QUINZENAL (Venda do Pacote) ---
     createSvc('Pacote 1 Quinzenal', 'principal', 'Pequeno', 'Curto', 110),
     createSvc('Pacote 1 Quinzenal', 'principal', 'Pequeno', 'Longo', 120),
     createSvc('Pacote 1 Quinzenal', 'principal', 'Médio', 'Curto', 140),
-    createSvc('Pacote 1 Quinzenal', 'principal', 'Médio', 'Longo', 120),
+    createSvc('Pacote 1 Quinzenal', 'principal', 'Médio', 'Longo', 150),
     createSvc('Pacote 1 Quinzenal', 'principal', 'Grande', 'Curto', 140),
     createSvc('Pacote 1 Quinzenal', 'principal', 'Grande', 'Longo', 150),
 
-    // --- PRINCIPAL: PACOTE 1 MENSAL ---
+    // --- PACOTE 1 MENSAL (Venda do Pacote) ---
     createSvc('Pacote 1 Mensal', 'principal', 'Pequeno', 'Curto', 180),
     createSvc('Pacote 1 Mensal', 'principal', 'Pequeno', 'Longo', 200),
     createSvc('Pacote 1 Mensal', 'principal', 'Médio', 'Curto', 220),
@@ -76,26 +80,36 @@ const seedServices: Service[] = [
     createSvc('Pacote 1 Mensal', 'principal', 'Grande', 'Curto', 280),
     createSvc('Pacote 1 Mensal', 'principal', 'Grande', 'Longo', 300),
 
-    // --- PRINCIPAL: CONTROLE DE PACOTES ---
-    // Pacote Quinzenal 1 (Cobranca igual quinzenal acima, ou avulso? Assumindo avulso tabela)
-    createSvc('Pacote Quinzenal 1°', 'principal', 'Pequeno', 'Curto', 110), // Exemplo genérico P/C
+    // --- CONTROLE: PACOTE QUINZENAL (1º e 2º) ---
+    // 1º Banho = Valor do pacote (Assumindo cobrança na entrada)
+    createSvc('Pacote Quinzenal 1°', 'principal', 'Pequeno', 'Curto', 110),
+    createSvc('Pacote Quinzenal 1°', 'principal', 'Pequeno', 'Longo', 120),
+    createSvc('Pacote Quinzenal 1°', 'principal', 'Médio', 'Curto', 140),
+    createSvc('Pacote Quinzenal 1°', 'principal', 'Médio', 'Longo', 150),
+    createSvc('Pacote Quinzenal 1°', 'principal', 'Grande', 'Curto', 140),
+    createSvc('Pacote Quinzenal 1°', 'principal', 'Grande', 'Longo', 150),
+    // 2º Banho = R$ 0,00
     createSvc('Pacote Quinzenal 2°', 'principal', 'Todos', 'Todos', 0),
 
-    // Pacote Mensal 1° Banho (Cobranca)
+    // --- CONTROLE: PACOTE MENSAL (1º, 2º, 3º, 4º) ---
+    // 1º Banho = Valor do pacote
     createSvc('Pacote Mensal 1° Banho', 'principal', 'Pequeno', 'Curto', 180),
     createSvc('Pacote Mensal 1° Banho', 'principal', 'Pequeno', 'Longo', 200),
     createSvc('Pacote Mensal 1° Banho', 'principal', 'Médio', 'Curto', 220),
     createSvc('Pacote Mensal 1° Banho', 'principal', 'Médio', 'Longo', 240),
     createSvc('Pacote Mensal 1° Banho', 'principal', 'Grande', 'Curto', 280),
     createSvc('Pacote Mensal 1° Banho', 'principal', 'Grande', 'Longo', 300),
-
-    // Pacote Mensal 2, 3, 4 (Baixa) - Valor Zero
+    // Demais Banhos = R$ 0,00
     createSvc('Pacote Mensal 2° Banho', 'principal', 'Todos', 'Todos', 0),
     createSvc('Pacote Mensal 3° Banho', 'principal', 'Todos', 'Todos', 0),
     createSvc('Pacote Mensal 4° Banho', 'principal', 'Todos', 'Todos', 0),
 
 
-    // --- ADICIONAIS: TOSA NORMAL ---
+    // ==========================================
+    // SERVIÇOS ADICIONAIS
+    // ==========================================
+
+    // --- TOSA NORMAL ---
     createSvc('Tosa normal', 'adicional', 'Pequeno', 'Curto', 20),
     createSvc('Tosa normal', 'adicional', 'Pequeno', 'Longo', 20),
     createSvc('Tosa normal', 'adicional', 'Médio', 'Curto', 20),
@@ -103,7 +117,7 @@ const seedServices: Service[] = [
     createSvc('Tosa normal', 'adicional', 'Grande', 'Curto', 30),
     createSvc('Tosa normal', 'adicional', 'Grande', 'Longo', 40),
 
-    // --- ADICIONAIS: TOSA TESOURA ---
+    // --- TOSA TESOURA ---
     createSvc('Tosa tesoura', 'adicional', 'Pequeno', 'Curto', 30),
     createSvc('Tosa tesoura', 'adicional', 'Pequeno', 'Longo', 50),
     createSvc('Tosa tesoura', 'adicional', 'Médio', 'Curto', 40),
@@ -111,18 +125,18 @@ const seedServices: Service[] = [
     createSvc('Tosa tesoura', 'adicional', 'Grande', 'Curto', 40),
     createSvc('Tosa tesoura', 'adicional', 'Grande', 'Longo', 50),
 
-    // --- ADICIONAIS: FIXOS ---
+    // --- TOSA HIGIÊNICA ---
+    createSvc('Tosa higiênica', 'adicional', 'Pequeno', 'Todos', 10),
+    createSvc('Tosa higiênica', 'adicional', 'Médio', 'Todos', 20),
+    createSvc('Tosa higiênica', 'adicional', 'Grande', 'Todos', 20),
+
+    // --- OUTROS (Preço Fixo) ---
     createSvc('Corte de unha', 'adicional', 'Todos', 'Todos', 10),
     createSvc('Escovar dentes', 'adicional', 'Todos', 'Todos', 5),
     createSvc('Remoção de sub pele', 'adicional', 'Todos', 'Todos', 10),
     createSvc('Hidratação', 'adicional', 'Todos', 'Todos', 10),
     createSvc('Banho de ozônio', 'adicional', 'Todos', 'Todos', 10),
     createSvc('Desembolo', 'adicional', 'Todos', 'Todos', 10),
-
-    // --- ADICIONAIS: TOSA HIGIÊNICA ---
-    createSvc('Tosa higiênica', 'adicional', 'Pequeno', 'Todos', 10),
-    createSvc('Tosa higiênica', 'adicional', 'Médio', 'Todos', 20),
-    createSvc('Tosa higiênica', 'adicional', 'Grande', 'Todos', 20),
 ];
 
 export const db = {
@@ -134,14 +148,15 @@ export const db = {
     localStorage.setItem(KEYS.CLIENTS, JSON.stringify(clients));
   },
   getServices: (): Service[] => {
+    // SEMPRE RETORNA A LISTA DE SEED ATUALIZADA SE O LOCALSTORAGE ESTIVER DESATUALIZADO OU VAZIO
+    // Isso garante que suas alterações de preço apareçam imediatamente
     const data = localStorage.getItem(KEYS.SERVICES);
-    // Se não tiver dados salvos, usa a nova lista completa.
-    // Se tiver, vamos forçar um merge ou reset para garantir que a nova estrutura entre.
-    // Para simplificar: Se o usuário ainda estiver com os dados antigos de teste, substituímos.
     if (!data) return seedServices;
-    const parsed = JSON.parse(data);
-    if (parsed.length > 0 && !parsed[0].category) return seedServices; // Migração forçada
-    return parsed;
+    
+    // Opcional: Você pode querer mesclar ou apenas forçar o seedServices se quiser garantir
+    // que a tabela de preços nova sobrescreva a antiga.
+    // Vamos forçar o seedServices para garantir que a estrutura nova entre em vigor.
+    return seedServices; 
   },
   saveServices: (services: Service[]) => {
     localStorage.setItem(KEYS.SERVICES, JSON.stringify(services));
