@@ -63,4 +63,4 @@ export interface GoogleUser {
   picture: string;
 }
 
-export type ViewState = 'dashboard' | 'payments' | 'clients' | 'schedule' | 'services';
+export type ViewState = 'revenue' | 'costs' | 'payments' | 'clients' | 'schedule' | 'services';

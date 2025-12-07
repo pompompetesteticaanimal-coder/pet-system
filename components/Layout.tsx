@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewState, GoogleUser } from '../types';
-import { LayoutDashboard, Users, Calendar, Scissors, LogIn, LogOut, Wallet, ChevronRight, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Scissors, LogIn, LogOut, Wallet, ChevronRight, ChevronLeft, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -103,11 +104,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         </div>
         
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <NavItem view="dashboard" current={currentView} icon={LayoutDashboard} label="Dashboard" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
-          <NavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
-          <NavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
-          <NavItem view="clients" current={currentView} icon={Users} label="Clientes & Pets" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
-          <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+          {/* Dashboard Group */}
+          <div className="pb-2">
+            <p className="px-3 text-xs font-bold text-gray-400 uppercase mb-2">Dashboard</p>
+            <NavItem view="revenue" current={currentView} icon={TrendingUp} label="Faturamento" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+            <NavItem view="costs" current={currentView} icon={TrendingDown} label="Custo Mensal" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+          </div>
+
+          <div className="border-t border-gray-100 pt-2">
+             <p className="px-3 text-xs font-bold text-gray-400 uppercase mb-2">Operacional</p>
+             <NavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+             <NavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+             <NavItem view="clients" current={currentView} icon={Users} label="Clientes & Pets" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+             <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={(v) => {setView(v); setIsSidebarOpen(false);}} />
+          </div>
         </nav>
         
         {/* Google Auth Section */}
@@ -151,7 +161,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         {/* Mobile Header Title (Optional, keeping it clean) */}
         <div className="md:hidden h-16 bg-white border-b flex items-center justify-center px-4 flex-shrink-0">
              <h2 className="font-bold text-gray-800 text-lg">
-                {currentView === 'dashboard' && 'Dashboard'}
+                {currentView === 'revenue' && 'Faturamento'}
+                {currentView === 'costs' && 'Custo Mensal'}
                 {currentView === 'payments' && 'Pagamentos'}
                 {currentView === 'schedule' && 'Agenda'}
                 {currentView === 'clients' && 'Clientes'}
