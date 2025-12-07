@@ -9,7 +9,7 @@ import {
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
   RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
   ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
-  Edit2, MoreVertical, Wallet, Filter, CreditCard
+  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -203,6 +203,7 @@ const PaymentManager: React.FC<{
     accessToken: string | null;
     sheetId: string;
 }> = ({ appointments, clients, services, onUpdateAppointment, accessToken, sheetId }) => {
+    const [viewMode, setViewMode] = useState<'daily' | 'pending'>('daily');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [amount, setAmount] = useState('');
@@ -214,7 +215,20 @@ const PaymentManager: React.FC<{
     const touchEnd = useRef<number | null>(null);
     const minSwipeDistance = 50;
 
-    const filteredApps = appointments.filter(a => a.date.startsWith(selectedDate));
+    // Filter Logic
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const dailyApps = appointments.filter(a => a.date.startsWith(selectedDate));
+    
+    // Pending: Date < Today AND (paidAmount is missing/0 OR paymentMethod is missing)
+    const pendingApps = appointments.filter(a => {
+        const appDate = a.date.split('T')[0];
+        const isPast = appDate < todayStr;
+        const isUnpaid = !a.paymentMethod || a.paymentMethod.trim() === ''; // Relies on Column S being blank
+        return isPast && isUnpaid;
+    }).sort((a,b) => b.date.localeCompare(a.date)); // Sort by date desc
+
+    const displayedApps = viewMode === 'daily' ? dailyApps : pendingApps;
 
     const navigateDate = (days: number) => {
         const [year, month, day] = selectedDate.split('-').map(Number);
@@ -239,6 +253,8 @@ const PaymentManager: React.FC<{
 
     const onTouchEnd = () => {
         if (!touchStart.current || !touchEnd.current) return;
+        if (viewMode === 'pending') return; // Disable swipe date change on pending view
+
         const distance = touchStart.current - touchEnd.current;
         const isLeftSwipe = distance > minSwipeDistance;
         const isRightSwipe = distance < -minSwipeDistance;
@@ -302,7 +318,7 @@ const PaymentManager: React.FC<{
         const pet = client?.pets.find(p => p.id === app.petId);
         const mainSvc = services.find(s => s.id === app.serviceId);
         const expected = calculateExpected(app);
-        const isPaid = !!app.paidAmount;
+        const isPaid = !!app.paidAmount && !!app.paymentMethod;
 
         const isEditing = editingId === app.id;
 
@@ -348,6 +364,7 @@ const PaymentManager: React.FC<{
                         <div className="text-lg font-bold text-gray-800">{pet?.name}</div>
                         <div className="text-sm text-gray-500">{client?.name}</div>
                         <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                            {viewMode === 'pending' && <span className="text-red-500 font-bold mr-1">{new Date(app.date).toLocaleDateString('pt-BR')}</span>}
                             <Clock size={12}/> {new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
                         </div>
                     </div>
@@ -358,8 +375,8 @@ const PaymentManager: React.FC<{
                                 {app.paymentMethod}
                             </div>
                         ) : (
-                            <div className="inline-block bg-yellow-100 text-yellow-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                Pendente
+                            <div className="inline-block bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                {viewMode === 'pending' ? 'Atrasado' : 'Pendente'}
                             </div>
                         )}
                     </div>
@@ -379,7 +396,7 @@ const PaymentManager: React.FC<{
 
     return (
         <div 
-            className="space-y-6 h-full flex flex-col"
+            className="space-y-4 h-full flex flex-col"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -387,7 +404,27 @@ const PaymentManager: React.FC<{
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-shrink-0">
                 <h2 className="text-2xl font-bold text-gray-800">Pagamentos</h2>
                 
-                <div className="flex items-center gap-2 w-full md:w-auto bg-white p-1 rounded-lg border shadow-sm">
+                {/* View Toggles */}
+                <div className="flex bg-gray-200 p-1 rounded-lg">
+                    <button 
+                        onClick={() => setViewMode('daily')}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition ${viewMode === 'daily' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
+                    >
+                        Caixa do Dia
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('pending')}
+                        className={`px-4 py-2 text-sm font-bold rounded-md transition flex items-center gap-2 ${viewMode === 'pending' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}
+                    >
+                        Pendentes
+                        {pendingApps.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingApps.length}</span>}
+                    </button>
+                </div>
+            </div>
+
+            {/* Date Navigation (Only for Daily View) */}
+            {viewMode === 'daily' && (
+                <div className="flex items-center gap-2 w-full md:w-auto bg-white p-1 rounded-lg border shadow-sm flex-shrink-0">
                     <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
                         <ChevronLeft size={20} />
                     </button>
@@ -407,17 +444,24 @@ const PaymentManager: React.FC<{
                         className="border-l pl-2 ml-2 outline-none text-sm text-gray-700 font-medium bg-transparent"
                     />
                 </div>
-            </div>
+            )}
+            
+            {viewMode === 'pending' && (
+                <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-red-800 text-sm flex items-center gap-2">
+                    <AlertCircle size={18} />
+                    Mostrando pagamentos em aberto anteriores a hoje.
+                </div>
+            )}
 
             {/* Mobile View (Cards) */}
             <div className="md:hidden flex-1 overflow-y-auto min-h-0">
-                {filteredApps.map(app => (
+                {displayedApps.map(app => (
                     <PaymentRow key={app.id} app={app} isMobile={true} />
                 ))}
-                {filteredApps.length === 0 && (
+                {displayedApps.length === 0 && (
                     <div className="text-center p-8 text-gray-400 bg-white rounded-xl border border-dashed flex flex-col items-center justify-center h-48">
-                        <p>Nenhum agendamento para este dia.</p>
-                        <p className="text-xs mt-2 opacity-60">Deslize para mudar o dia</p>
+                        <p>{viewMode === 'daily' ? 'Nenhum agendamento para este dia.' : 'Tudo em dia! Nenhum pagamento pendente.'}</p>
+                        {viewMode === 'daily' && <p className="text-xs mt-2 opacity-60">Deslize para mudar o dia</p>}
                     </div>
                 )}
             </div>
@@ -427,7 +471,8 @@ const PaymentManager: React.FC<{
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora/Cliente</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente/Pet</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serviços</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor Total</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -435,11 +480,11 @@ const PaymentManager: React.FC<{
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                        {filteredApps.map(app => {
+                        {displayedApps.map(app => {
                             if (editingId === app.id) {
                                 return (
                                     <tr key={app.id} className="bg-brand-50">
-                                        <td colSpan={5} className="p-0">
+                                        <td colSpan={6} className="p-0">
                                             <div className="flex items-center gap-4 p-4">
                                                 <div className="font-bold text-gray-800">{clients.find(c=>c.id===app.clientId)?.pets.find(p=>p.id===app.petId)?.name}</div>
                                                 <div className="flex items-center gap-2">
@@ -463,12 +508,17 @@ const PaymentManager: React.FC<{
                             const pet = client?.pets.find(p => p.id === app.petId);
                             const mainSvc = services.find(s => s.id === app.serviceId);
                             const expected = calculateExpected(app);
+                            const isPaid = !!app.paidAmount && !!app.paymentMethod;
 
                             return (
                                 <tr key={app.id}>
                                     <td className="px-6 py-4">
+                                        {viewMode === 'pending' && <div className="text-xs text-red-500 font-bold mb-1">{new Date(app.date).toLocaleDateString('pt-BR')}</div>}
                                         <div className="text-sm text-gray-900 font-bold">{new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</div>
-                                        <div className="text-xs text-gray-500">{client?.name} - {pet?.name}</div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm font-bold text-gray-800">{pet?.name}</div>
+                                        <div className="text-xs text-gray-500">{client?.name}</div>
                                     </td>
                                     <td className="px-6 py-4 text-xs text-gray-600">
                                         <div>{mainSvc?.name}</div>
@@ -476,13 +526,13 @@ const PaymentManager: React.FC<{
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold text-gray-800">R$ {expected.toFixed(2)}</td>
                                     <td className="px-6 py-4">
-                                        {app.paidAmount ? (
+                                        {isPaid ? (
                                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                                 Pago ({app.paymentMethod})
                                             </span>
                                         ) : (
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                Pendente
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewMode === 'pending' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                {viewMode === 'pending' ? 'Atrasado' : 'Pendente'}
                                             </span>
                                         )}
                                     </td>
