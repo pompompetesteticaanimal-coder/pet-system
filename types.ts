@@ -16,6 +16,7 @@ export interface Client {
   phone: string;
   address: string;
   complement?: string;
+  createdAt?: string; // Data do cadastro (Timestamp)
   pets: Pet[];
 }
 

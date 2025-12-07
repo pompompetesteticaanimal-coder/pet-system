@@ -8,7 +8,8 @@ import { Client, Service, Appointment, ViewState, Pet, GoogleUser } from './type
 import { 
   Plus, Trash2, Check, X, 
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
-  RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock
+  RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
+  ChevronDown, ChevronRight, Search
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -54,6 +55,13 @@ const SetupScreen: React.FC<{ onSave: (id: string) => void }> = ({ onSave }) => 
 
 // 2. Login Screen (Gatekeeper)
 const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ onLogin, onReset }) => {
+    const currentOrigin = window.location.origin;
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(currentOrigin);
+        alert('Link copiado! Cole nas "Origens JavaScript autorizadas" no Google Cloud Console.');
+    };
+
     return (
         <div className="min-h-screen bg-brand-50 flex flex-col items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
@@ -63,11 +71,22 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ o
 
                 <button 
                     onClick={onLogin}
-                    className="w-full bg-white border-2 border-gray-200 hover:border-brand-500 hover:bg-brand-50 text-gray-700 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all group"
+                    className="w-full bg-white border-2 border-gray-200 hover:border-brand-500 hover:bg-brand-50 text-gray-700 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all group mb-6"
                 >
                     <div className="bg-white p-1 rounded-full"><LogIn className="text-brand-600 group-hover:scale-110 transition-transform" /></div>
                     Entrar com Google
                 </button>
+
+                {/* Área de Ajuda para Erro 400 */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left text-xs text-yellow-800">
+                    <p className="font-bold mb-2 flex items-center gap-1"><ShieldAlert size={14}/> Deu erro 400?</p>
+                    <p className="mb-2">Você precisa autorizar este site no Google:</p>
+                    <div className="flex items-center gap-2 bg-white border border-yellow-300 rounded p-2 mb-2">
+                        <code className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-gray-600">{currentOrigin}</code>
+                        <button onClick={copyToClipboard} className="text-brand-600 font-bold hover:text-brand-800"><Copy size={14}/></button>
+                    </div>
+                    <p>Adicione este link em <strong>"Origens JavaScript autorizadas"</strong> no seu projeto do Google Cloud.</p>
+                </div>
 
                 <button onClick={onReset} className="mt-8 text-xs text-gray-400 hover:text-red-500 underline">
                     Alterar ID do Cliente
@@ -168,10 +187,25 @@ const ClientManager: React.FC<{
   accessToken: string | null;
 }> = ({ clients, onSyncClients, onDeleteClient, googleUser, accessToken }) => {
   const [showConfig, setShowConfig] = useState(false);
-  // Usa o valor pré-definido como padrão, mas permite override via localStorage
   const [sheetId, setSheetId] = useState(localStorage.getItem('petgestor_sheet_id') || PREDEFINED_SHEET_ID);
   const [formUrl, setFormUrl] = useState(localStorage.getItem('petgestor_form_url') || PREDEFINED_FORM_URL);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Ordena clientes por data de criação (se existir) ou nome
+  const sortedClients = [...clients].sort((a, b) => {
+    if (a.createdAt && b.createdAt) {
+        // Data mais recente primeiro
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); 
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  const filteredClients = sortedClients.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    c.phone.includes(searchTerm) ||
+    c.pets.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const saveConfig = () => {
     localStorage.setItem('petgestor_sheet_id', sheetId);
@@ -192,8 +226,8 @@ const ClientManager: React.FC<{
 
     setIsSyncing(true);
     try {
-      // ATENÇÃO: Mudança para ler a aba CADASTRO
-      const rows = await googleService.getSheetValues(accessToken, sheetId, 'CADASTRO!A:M'); 
+      // Leitura expandida até a coluna O (índice 14)
+      const rows = await googleService.getSheetValues(accessToken, sheetId, 'CADASTRO!A:O'); 
       
       if (!rows || rows.length < 2) {
         alert("Planilha vazia ou aba 'CADASTRO' não encontrada.");
@@ -204,32 +238,58 @@ const ClientManager: React.FC<{
       const clientsMap = new Map<string, Client>();
 
       rows.slice(1).forEach((row: string[], index: number) => {
-        const [
-          timestamp, 
-          name, 
-          phone, 
-          address, 
-          complement, 
-          petName, 
-          petAge, 
-          petGender,
-          petBreed, 
-          petSize, 
-          petCoat,
-          notes
-        ] = row;
+        // Mapeamento baseado na lista fornecida pelo usuário:
+        // 0: Nome/pet (Ignorar ou usar como ref)
+        // 1: Carimbo (Timestamp)
+        // 2: Email
+        // 3: Nome Cliente
+        // 4: Telefone
+        // 5: Endereço
+        // 6: Nome Pet
+        // 7: Raça
+        // 8: Porte
+        // 9: Pelagem
+        // 10: Obs
+        // 11: Complemento
+        // 12: Idade
+        // 13: Sexo
         
-        if (!name || !phone) return;
+        const timestamp = row[1];
+        const clientName = row[3];
+        const phone = row[4];
+        const address = row[5];
+        const complement = row[11]; // Complemento está na coluna L (index 11)
+        
+        const petName = row[6];
+        const petBreed = row[7];
+        const petSize = row[8];
+        const petCoat = row[9];
+        const petNotes = row[10];
+        const petAge = row[12];
+        const petGender = row[13];
+        
+        if (!clientName || !phone) return;
 
         const cleanPhone = phone.replace(/\D/g, '');
         
         if (!clientsMap.has(cleanPhone)) {
+          // Converter data do sheets (ex: 12/06/2025 15:30:00) para ISO se possível
+          let createdIso = new Date().toISOString(); 
+          try {
+             if(timestamp) {
+                const [datePart, timePart] = timestamp.split(' ');
+                const [day, month, year] = datePart.split('/');
+                if(year && month && day) createdIso = new Date(`${year}-${month}-${day}T${timePart || '00:00'}`).toISOString();
+             }
+          } catch(e) {}
+
           clientsMap.set(cleanPhone, {
             id: cleanPhone,
-            name: name,
+            name: clientName,
             phone: phone,
             address: address || '',
             complement: complement || '',
+            createdAt: createdIso,
             pets: []
           });
         }
@@ -245,7 +305,7 @@ const ClientManager: React.FC<{
             gender: petGender || '',
             size: petSize || '',
             coat: petCoat || '',
-            notes: notes || ''
+            notes: petNotes || ''
           });
         }
       });
@@ -265,9 +325,12 @@ const ClientManager: React.FC<{
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Clientes e Pets</h2>
+        <div>
+            <h2 className="text-2xl font-bold text-gray-800">Clientes e Pets</h2>
+            <p className="text-sm text-gray-500">Ordenado por data de cadastro (mais recentes no topo)</p>
+        </div>
         
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex gap-2 w-full md:w-auto flex-wrap">
              {formUrl && (
                 <a 
                   href={formUrl} 
@@ -275,7 +338,7 @@ const ClientManager: React.FC<{
                   rel="noreferrer"
                   className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition text-sm flex-1 md:flex-none justify-center"
                 >
-                  <ExternalLink size={16} /> Abrir Formulário
+                  <ExternalLink size={16} /> Formulário
                 </a>
              )}
              
@@ -285,7 +348,7 @@ const ClientManager: React.FC<{
                 className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition text-sm flex-1 md:flex-none justify-center disabled:opacity-70"
              >
                 <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} /> 
-                {isSyncing ? 'Sincronizando...' : 'Sincronizar Planilha'}
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
              </button>
 
              <button 
@@ -297,34 +360,25 @@ const ClientManager: React.FC<{
         </div>
       </div>
 
+      <div className="relative">
+        <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+        <input 
+            className="w-full pl-10 p-2.5 border rounded-lg focus:ring-2 ring-brand-200 outline-none"
+            placeholder="Buscar por nome do cliente, pet ou telefone..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+        />
+      </div>
+
       {showConfig && (
         <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 shadow-sm animate-fade-in-down">
           <h3 className="text-lg font-semibold mb-4 text-yellow-800 flex items-center gap-2">
             <Settings size={18} /> Configurações do Sistema
           </h3>
-          
-          <div className="bg-white p-4 rounded border border-yellow-100 mb-4 text-sm text-gray-700">
-             <p className="font-bold mb-2">Estrutura do Formulário (Aba "CADASTRO"):</p>
-             <ol className="list-decimal list-inside space-y-1 ml-2 text-xs md:text-sm">
-                <li>Nome do cliente</li>
-                <li>Telefone</li>
-                <li>Endereço</li>
-                <li>Complemento</li>
-                <li>Nome do Pet</li>
-                <li>Idade</li>
-                <li>Sexo (Macho/Fêmea)</li>
-                <li>Raça</li>
-                <li>Porte (Pequeno/Médio/Grande)</li>
-                <li>Pelagem (Curto/Longo)</li>
-                <li>Obs</li>
-             </ol>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label className="block text-xs font-bold text-gray-600 uppercase mb-1">ID da Planilha Google</label>
                 <input 
-                    placeholder="Ex: 1BxiMVs0XRA5nFMdKvBdBZj..." 
                     className="w-full border p-2 rounded focus:ring-2 ring-yellow-400 outline-none" 
                     value={sheetId} 
                     onChange={e => setSheetId(e.target.value)} 
@@ -333,17 +387,15 @@ const ClientManager: React.FC<{
             <div>
                 <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Link do Formulário</label>
                 <input 
-                    placeholder="Ex: https://forms.gle/..." 
                     className="w-full border p-2 rounded focus:ring-2 ring-yellow-400 outline-none" 
                     value={formUrl} 
                     onChange={e => setFormUrl(e.target.value)} 
                 />
             </div>
           </div>
-          
           <div className="flex justify-end gap-3 mt-4">
             <button onClick={() => setShowConfig(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Fechar</button>
-            <button onClick={saveConfig} className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">Salvar Configurações</button>
+            <button onClick={saveConfig} className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">Salvar</button>
           </div>
         </div>
       )}
@@ -351,50 +403,72 @@ const ClientManager: React.FC<{
       {clients.length === 0 && !showConfig ? (
           <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
               <p className="text-gray-500 mb-2">Nenhum cliente encontrado.</p>
-              <p className="text-sm text-gray-400">Clique em "Sincronizar Planilha" para carregar os dados.</p>
+              <p className="text-sm text-gray-400">Clique em "Sincronizar" para carregar.</p>
           </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {clients.map(client => (
-            <div key={client.id} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 className="font-bold text-gray-800">{client.name}</h3>
-                        <p className="text-sm text-gray-500">{client.phone}</p>
-                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                        <MapPin size={12} />
-                        {client.address} {client.complement && ` - ${client.complement}`}
-                        </p>
-                    </div>
-                    <button onClick={() => onDeleteClient(client.id)} className="text-red-400 hover:text-red-600" title="Remover da visualização (não apaga da planilha)"><Trash2 size={16} /></button>
-                </div>
-                <div className="space-y-2">
-                    {client.pets.map(pet => (
-                        <div key={pet.id} className="bg-brand-50 p-3 rounded-lg text-sm space-y-1">
-                            <div className="flex justify-between items-center border-b border-brand-100 pb-1 mb-1">
-                                <span className="font-bold text-brand-800 flex items-center gap-1">
-                                    <PawPrint size={12} /> {pet.name}
-                                </span>
-                                <span className="text-xs bg-white px-2 py-0.5 rounded text-brand-600 border border-brand-100">{pet.breed}</span>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-gray-600">
-                                {pet.gender && <div>Sexo: <span className="font-semibold">{pet.gender}</span></div>}
-                                {pet.age && <div>Idade: {pet.age}</div>}
-                                {pet.size && <div>Porte: {pet.size}</div>}
-                                {pet.coat && <div>Pelo: {pet.coat}</div>}
-                            </div>
-                            
-                            {pet.notes && (
-                                <div className="text-xs italic text-red-500 mt-1 bg-red-50 p-1 rounded border border-red-100">
-                                    Obs: {pet.notes}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cadastro</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contato / Endereço</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pet(s)</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredClients.map(client => (
+                            <tr key={client.id} className="hover:bg-gray-50 transition">
+                                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                                    {client.createdAt ? new Date(client.createdAt).toLocaleDateString('pt-BR') : '-'}
+                                    <div className="text-[10px] text-gray-400">
+                                        {client.createdAt ? new Date(client.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : ''}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="text-sm font-bold text-gray-900">{client.name}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="text-sm text-gray-900">{client.phone}</div>
+                                    <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                                        <MapPin size={10} /> {client.address} {client.complement ? `, ${client.complement}` : ''}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                    <div className="space-y-2">
+                                        {client.pets.map((pet, idx) => (
+                                            <div key={idx} className="bg-brand-50 rounded p-2 text-xs border border-brand-100">
+                                                <div className="flex items-center justify-between font-bold text-brand-800">
+                                                    <span className="flex items-center gap-1"><PawPrint size={10} /> {pet.name}</span>
+                                                    <span>{pet.breed}</span>
+                                                </div>
+                                                <div className="text-gray-600 mt-1 grid grid-cols-2 gap-1">
+                                                    <span>{pet.gender}</span>
+                                                    <span>{pet.age}</span>
+                                                    <span>{pet.size}</span>
+                                                    <span>{pet.coat}</span>
+                                                </div>
+                                                {pet.notes && (
+                                                    <div className="mt-1 text-red-500 italic bg-white px-1 rounded border border-red-100">
+                                                        Obs: {pet.notes}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </td>
+                                <td className="px-6 py-4 text-right text-sm font-medium">
+                                    <button onClick={() => onDeleteClient(client.id)} className="text-red-400 hover:text-red-600">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
-            ))}
         </div>
       )}
     </div>
@@ -459,7 +533,7 @@ const ServiceManager: React.FC<{
     )
 }
 
-// 6. Schedule Manager
+// 6. Schedule Manager - NEW STRUCTURE
 const ScheduleManager: React.FC<{
   appointments: Appointment[];
   clients: Client[];
@@ -469,105 +543,151 @@ const ScheduleManager: React.FC<{
   onDelete: (id: string) => void;
   googleUser: GoogleUser | null;
 }> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete, googleUser }) => {
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    // Estado para controle de dias expandidos
+    const todayStr = new Date().toISOString().split('T')[0];
+    const [expandedDays, setExpandedDays] = useState<string[]>([todayStr]);
     const [showModal, setShowModal] = useState(false);
     
-    // Form State
+    // Form State (Agora inclui data)
+    const [selDate, setSelDate] = useState(todayStr);
+    const [selTime, setSelTime] = useState('09:00');
     const [selClient, setSelClient] = useState('');
     const [selPet, setSelPet] = useState('');
     const [selService, setSelService] = useState('');
-    const [selTime, setSelTime] = useState('09:00');
 
-    const filteredApps = appointments.filter(a => a.date.startsWith(selectedDate)).sort((a,b) => a.date.localeCompare(b.date));
+    // Agrupa agendamentos por dia
+    const groupedApps = appointments.reduce((acc, app) => {
+        const date = app.date.split('T')[0];
+        if (!acc[date]) acc[date] = [];
+        acc[date].push(app);
+        return acc;
+    }, {} as Record<string, Appointment[]>);
+
+    // Ordena as chaves (datas) cronologicamente
+    const sortedDates = Object.keys(groupedApps).sort();
+
+    const toggleDay = (date: string) => {
+        if (expandedDays.includes(date)) {
+            setExpandedDays(expandedDays.filter(d => d !== date));
+        } else {
+            setExpandedDays([...expandedDays, date]);
+        }
+    };
 
     const handleCreate = () => {
-        if(selClient && selPet && selService) {
+        if(selClient && selPet && selService && selDate) {
             onAdd({
                 id: Date.now().toString(),
                 clientId: selClient,
                 petId: selPet,
                 serviceId: selService,
-                date: `${selectedDate}T${selTime}`,
+                date: `${selDate}T${selTime}`,
                 status: 'agendado'
             });
             setShowModal(false);
+            // Auto expande o dia onde o agendamento foi criado
+            if (!expandedDays.includes(selDate)) {
+                setExpandedDays(prev => [...prev, selDate]);
+            }
         }
     };
 
     return (
-        <div className="h-full flex flex-col md:flex-row gap-6">
-            {/* Left: Calendar Picker & Form */}
-            <div className="md:w-1/3 space-y-6">
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-gray-700 mb-4">Selecione a Data</h3>
-                    <input 
-                        type="date" 
-                        className="w-full p-3 border rounded-lg text-lg focus:ring-2 ring-brand-200 outline-none"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                    />
+        <div className="h-full flex flex-col gap-6">
+            <div className="flex justify-between items-center">
+                <div>
+                     <h2 className="text-2xl font-bold text-gray-800">Agenda</h2>
+                     {googleUser && (
+                        <div className="text-xs text-blue-600 flex items-center gap-1">
+                            <CalendarIcon size={12} /> Sincronizado com Google Calendar
+                        </div>
+                     )}
                 </div>
-                
-                <button onClick={() => setShowModal(true)} className="w-full bg-brand-600 text-white py-4 rounded-xl shadow-lg hover:bg-brand-700 transition flex items-center justify-center gap-2 font-bold text-lg">
+                <button 
+                    onClick={() => {
+                        setSelDate(todayStr); // Reset data para hoje ao abrir modal
+                        setShowModal(true);
+                    }} 
+                    className="bg-brand-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-brand-700 transition flex items-center justify-center gap-2 font-bold"
+                >
                     <Plus /> Novo Agendamento
                 </button>
-
-                {googleUser && (
-                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-2 text-xs text-blue-800">
-                     <CalendarIcon size={14} />
-                     Sincronização com Google Calendar ativa.
-                   </div>
-                )}
             </div>
 
-            {/* Right: Timeline */}
-            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
-                    <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                        <CalendarIcon size={18}/> 
-                        Agenda: {new Date(selectedDate).toLocaleDateString('pt-BR')}
-                    </h3>
-                </div>
-                <div className="flex-1 overflow-auto p-4 space-y-3">
-                    {filteredApps.length === 0 ? (
+            {/* Timeline agrupada por dias */}
+            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-auto p-4 space-y-4">
+                    {sortedDates.length === 0 ? (
                         <div className="text-center text-gray-400 mt-10">
-                            <p>Nenhum agendamento para este dia.</p>
+                            <CalendarIcon size={48} className="mx-auto mb-2 opacity-20"/>
+                            <p>Nenhum agendamento encontrado.</p>
                         </div>
                     ) : (
-                        filteredApps.map(app => {
-                            const client = clients.find(c => c.id === app.clientId);
-                            const pet = client?.pets.find(p => p.id === app.petId);
-                            const service = services.find(s => s.id === app.serviceId);
-                            const time = app.date.split('T')[1];
+                        sortedDates.map(date => {
+                            const apps = groupedApps[date].sort((a,b) => a.date.localeCompare(b.date));
+                            const isExpanded = expandedDays.includes(date);
+                            const isToday = date === todayStr;
 
                             return (
-                                <div key={app.id} className={`p-4 rounded-lg border-l-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all
-                                    ${app.status === 'concluido' ? 'border-green-500 bg-green-50/50' : 
-                                      app.status === 'cancelado' ? 'border-red-500 bg-red-50/50' : 'border-brand-500 bg-white'}`}>
-                                    
-                                    <div className="flex items-start gap-4">
-                                        <div className="text-xl font-bold text-gray-400">{time}</div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-800">{pet?.name} <span className="text-gray-500 font-normal">({client?.name})</span></h4>
-                                            <p className="text-sm text-brand-600 font-medium">{service?.name}</p>
-                                            <p className="text-xs text-gray-400">{service?.description}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {app.status === 'agendado' && (
-                                            <>
-                                                <button onClick={() => onUpdateStatus(app.id, 'concluido')} title="Concluir" className="p-2 text-green-500 hover:bg-green-50 rounded-full"><Check size={18} /></button>
-                                                <button onClick={() => onUpdateStatus(app.id, 'cancelado')} title="Cancelar" className="p-2 text-red-500 hover:bg-red-50 rounded-full"><X size={18} /></button>
-                                            </>
-                                        )}
-                                        {app.status === 'concluido' && (
-                                            <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-bold">
-                                                Concluído
+                                <div key={date} className="border border-gray-100 rounded-lg overflow-hidden">
+                                    {/* Header do Dia */}
+                                    <button 
+                                        onClick={() => toggleDay(date)}
+                                        className={`w-full flex items-center justify-between p-3 ${isToday ? 'bg-brand-50' : 'bg-gray-50'} hover:bg-gray-100 transition`}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            {isExpanded ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
+                                            <span className={`font-bold ${isToday ? 'text-brand-700' : 'text-gray-700'}`}>
+                                                {new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                                                {isToday && <span className="ml-2 text-xs bg-brand-600 text-white px-2 py-0.5 rounded-full">Hoje</span>}
                                             </span>
-                                        )}
-                                        {app.status === 'cancelado' && <span className="text-red-500 text-sm font-medium">Cancelado</span>}
-                                    </div>
+                                        </div>
+                                        <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">
+                                            {apps.length} agendamentos
+                                        </span>
+                                    </button>
+
+                                    {/* Lista de Agendamentos (Colapsável) */}
+                                    {isExpanded && (
+                                        <div className="p-3 space-y-3 bg-white">
+                                            {apps.map(app => {
+                                                const client = clients.find(c => c.id === app.clientId);
+                                                const pet = client?.pets.find(p => p.id === app.petId);
+                                                const service = services.find(s => s.id === app.serviceId);
+                                                const time = app.date.split('T')[1];
+
+                                                return (
+                                                    <div key={app.id} className={`p-4 rounded-lg border-l-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all
+                                                        ${app.status === 'concluido' ? 'border-green-500 bg-green-50/30' : 
+                                                          app.status === 'cancelado' ? 'border-red-500 bg-red-50/30' : 'border-brand-500 bg-white'}`}>
+                                                        
+                                                        <div className="flex items-start gap-4">
+                                                            <div className="text-xl font-bold text-gray-400">{time}</div>
+                                                            <div>
+                                                                <h4 className="font-bold text-gray-800">{pet?.name} <span className="text-gray-500 font-normal">({client?.name})</span></h4>
+                                                                <p className="text-sm text-brand-600 font-medium">{service?.name}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2">
+                                                            {app.status === 'agendado' && (
+                                                                <>
+                                                                    <button onClick={() => onUpdateStatus(app.id, 'concluido')} title="Concluir" className="p-2 text-green-500 hover:bg-green-50 rounded-full"><Check size={18} /></button>
+                                                                    <button onClick={() => onUpdateStatus(app.id, 'cancelado')} title="Cancelar" className="p-2 text-red-500 hover:bg-red-50 rounded-full"><X size={18} /></button>
+                                                                </>
+                                                            )}
+                                                            {app.status === 'concluido' && (
+                                                                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-bold">
+                                                                    Concluído
+                                                                </span>
+                                                            )}
+                                                            {app.status === 'cancelado' && <span className="text-red-500 text-sm font-medium">Cancelado</span>}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })
@@ -578,13 +698,28 @@ const ScheduleManager: React.FC<{
             {/* Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
-                        <h3 className="text-lg font-bold mb-4">Novo Agendamento</h3>
+                    <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl animate-fade-in-down">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h3 className="text-lg font-bold text-gray-800">Novo Agendamento</h3>
+                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                        </div>
                         
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Horário</label>
-                                <input type="time" value={selTime} onChange={e => setSelTime(e.target.value)} className="w-full border p-2 rounded mt-1" />
+                            {/* Data e Hora dentro do Modal */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Data</label>
+                                    <input 
+                                        type="date" 
+                                        value={selDate} 
+                                        onChange={e => setSelDate(e.target.value)} 
+                                        className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Horário</label>
+                                    <input type="time" value={selTime} onChange={e => setSelTime(e.target.value)} className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" />
+                                </div>
                             </div>
 
                             <div>
@@ -617,7 +752,7 @@ const ScheduleManager: React.FC<{
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-3 mt-6">
+                        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
                             <button onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
                             <button onClick={handleCreate} disabled={!selClient || !selPet || !selService} className="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700 disabled:opacity-50">Confirmar</button>
                         </div>
@@ -637,7 +772,6 @@ const App: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   
   // Auth State
-  // Iniciamos como TRUE para usar o ID padrão e pular a tela de Setup
   const [isConfigured, setIsConfigured] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
@@ -748,17 +882,14 @@ const App: React.FC = () => {
 
   // --- RENDER LOGIC ---
 
-  // 1. Not Configured -> Show Setup (Only if user resets)
   if (!isConfigured) {
       return <SetupScreen onSave={handleSaveConfig} />;
   }
 
-  // 2. Configured but not Logged in -> Show Login
   if (!googleUser) {
       return <LoginScreen onLogin={() => googleService.login()} onReset={handleResetConfig} />;
   }
 
-  // 3. Logged In -> Show App
   return (
     <HashRouter>
       <Layout 
