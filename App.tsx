@@ -595,11 +595,23 @@ const ScheduleManager: React.FC<{
         setCurrentDate(newDate);
     };
 
-    const getServiceColor = (name: string) => {
-        const lower = name.toLowerCase();
-        if (lower.includes('pacote')) return 'bg-purple-100 text-purple-800 border-purple-200';
-        if (lower.includes('banho')) return 'bg-blue-100 text-blue-800 border-blue-200';
-        if (lower.includes('tosa')) return 'bg-orange-100 text-orange-800 border-orange-200';
+    const getAppointmentStyle = (app: Appointment) => {
+        const mainSvc = services.find(s => s.id === app.serviceId);
+        const addSvcs = (app.additionalServiceIds || []).map(id => services.find(s => s.id === id)).filter(Boolean);
+        
+        // Verifica todos os nomes de serviços envolvidos
+        const allServiceNames = [mainSvc?.name || '', ...addSvcs.map(s => s?.name || '')].join(' ').toLowerCase();
+
+        // Regra de prioridade: Se tiver QUALQUER Tosa (Normal, Tesoura, Higiênica), fica Laranja
+        if (allServiceNames.includes('tosa')) return 'bg-orange-100 text-orange-800 border-orange-200 border-l-4 border-l-orange-500';
+        
+        // Regra: Pacotes ficam Roxos
+        if (mainSvc?.name.toLowerCase().includes('pacote')) return 'bg-purple-100 text-purple-800 border-purple-200 border-l-4 border-l-purple-500';
+        
+        // Regra: Banhos ficam Azuis
+        if (mainSvc?.name.toLowerCase().includes('banho')) return 'bg-blue-100 text-blue-800 border-blue-200 border-l-4 border-l-blue-500';
+        
+        // Padrão
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
 
@@ -743,11 +755,12 @@ const ScheduleManager: React.FC<{
                             const client = clients.find(c => c.id === app.clientId);
                             const pet = client?.pets.find(p => p.id === app.petId);
                             const service = services.find(s => s.id === app.serviceId);
+                            const addSvc1 = app.additionalServiceIds?.[0] ? services.find(s => s.id === app.additionalServiceIds[0]) : null;
                             const time = app.date.split('T')[1].substring(0, 5);
                             return (
                                 <div 
                                     key={app.id} 
-                                    className={`text-[10px] p-1 rounded truncate border cursor-pointer ${getServiceColor(service?.name || '')}`}
+                                    className={`text-[10px] p-1 rounded truncate border cursor-pointer ${getAppointmentStyle(app)}`}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setSelectedApp(app);
@@ -758,7 +771,8 @@ const ScheduleManager: React.FC<{
                                         setContextMenu({ x: e.pageX, y: e.pageY, id: app.id });
                                     }}
                                 >
-                                    {time} {pet?.name}
+                                    <span className="font-bold">{time}</span> {pet?.name}
+                                    {addSvc1 && <span className="block opacity-75">+ {addSvc1.name}</span>}
                                 </div>
                             )
                         })}
@@ -833,11 +847,12 @@ const ScheduleManager: React.FC<{
                                     const client = clients.find(c => c.id === app.clientId);
                                     const pet = client?.pets.find(p => p.id === app.petId);
                                     const service = services.find(s => s.id === app.serviceId);
+                                    const addSvc1 = app.additionalServiceIds?.[0] ? services.find(s => s.id === app.additionalServiceIds[0]) : null;
                                     
                                     return (
                                         <div 
                                             key={app.id} 
-                                            className={`relative z-10 mb-1 p-2 rounded text-xs border shadow-sm cursor-pointer ${getServiceColor(service?.name || '')}`}
+                                            className={`relative z-10 mb-1 p-2 rounded text-xs border shadow-sm cursor-pointer ${getAppointmentStyle(app)}`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setSelectedApp(app);
@@ -849,8 +864,11 @@ const ScheduleManager: React.FC<{
                                             }}
                                         >
                                             <div className="font-bold text-[10px] uppercase">{pet?.name}</div>
-                                            <div className="truncate text-[10px]">{client?.name}</div>
-                                            <div className="text-[9px] opacity-75">{service?.name}</div>
+                                            <div className="truncate text-[10px] font-medium">{client?.name}</div>
+                                            <div className="mt-1 pt-1 border-t border-black/10 text-[9px] leading-tight opacity-90">
+                                                {service?.name}
+                                                {addSvc1 && <div className="font-bold text-[9px]">+ {addSvc1.name}</div>}
+                                            </div>
                                         </div>
                                     )
                                 })}
@@ -961,7 +979,7 @@ const ScheduleManager: React.FC<{
                                             <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1"><Sparkles size={12}/> Serviços Contratados</h4>
                                             <div className="flex flex-wrap gap-2">
                                                 {mainService && (
-                                                    <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${getServiceColor(mainService.name)}`}>
+                                                    <span className="px-3 py-1.5 rounded-lg text-sm font-bold border bg-blue-50 text-blue-800 border-blue-200">
                                                         {mainService.name}
                                                     </span>
                                                 )}
