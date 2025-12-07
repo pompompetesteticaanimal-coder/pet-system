@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { db } from './services/db';
-import { googleService } from './services/googleCalendar';
+import { googleService, DEFAULT_CLIENT_ID } from './services/googleCalendar';
 import { Client, Service, Appointment, ViewState, Pet, GoogleUser } from './types';
 import { 
   Plus, Trash2, Check, X, 
@@ -12,30 +12,24 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
+// --- CONSTANTS ---
+const PREDEFINED_SHEET_ID = '1qbb0RoKxFfrdyTCyHd5rJRbLNBPcOEk4Y_ctyy-ujLw';
+const PREDEFINED_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfnUDOsMjn6iho8msiRw9ulfIEghwB1kEU_mrzz4PcSW97V-A/viewform';
+
 // --- Sub-Components ---
 
-// 1. Setup Screen (First run)
+// 1. Setup Screen (Hidden by default now, accessible via reset)
 const SetupScreen: React.FC<{ onSave: (id: string) => void }> = ({ onSave }) => {
-    const [clientId, setClientId] = useState('');
+    const [clientId, setClientId] = useState(DEFAULT_CLIENT_ID);
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg border border-gray-100 text-center">
                 <div className="w-16 h-16 bg-brand-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-6">P</div>
                 <h1 className="text-2xl font-bold text-gray-800 mb-2">Configuração Inicial</h1>
-                <p className="text-gray-500 mb-6">Para conectar com Google Agenda e Planilhas, precisamos do seu ID de Cliente Google.</p>
-
-                <div className="text-left bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6 text-sm text-blue-800">
-                    <p className="font-bold mb-2 flex items-center gap-2"><ShieldAlert size={16}/> Importante:</p>
-                    <p>No Google Cloud Console, adicione estas URLs em <strong>Origens JavaScript autorizadas</strong>:</p>
-                    <ul className="list-disc list-inside mt-2 font-mono text-xs space-y-1">
-                        <li>http://localhost:5173</li>
-                        <li>https://seu-projeto-vercel.app (Link do seu site)</li>
-                    </ul>
-                </div>
+                <p className="text-gray-500 mb-6">ID do Cliente Google (OAuth 2.0)</p>
 
                 <div className="text-left mb-6">
-                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">ID do Cliente (OAuth 2.0)</label>
                     <input 
                         value={clientId}
                         onChange={(e) => setClientId(e.target.value)}
@@ -76,7 +70,7 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ o
                 </button>
 
                 <button onClick={onReset} className="mt-8 text-xs text-gray-400 hover:text-red-500 underline">
-                    Configurar novo Client ID
+                    Alterar ID do Cliente
                 </button>
             </div>
         </div>
@@ -174,8 +168,9 @@ const ClientManager: React.FC<{
   accessToken: string | null;
 }> = ({ clients, onSyncClients, onDeleteClient, googleUser, accessToken }) => {
   const [showConfig, setShowConfig] = useState(false);
-  const [sheetId, setSheetId] = useState(localStorage.getItem('petgestor_sheet_id') || '');
-  const [formUrl, setFormUrl] = useState(localStorage.getItem('petgestor_form_url') || '');
+  // Usa o valor pré-definido como padrão, mas permite override via localStorage
+  const [sheetId, setSheetId] = useState(localStorage.getItem('petgestor_sheet_id') || PREDEFINED_SHEET_ID);
+  const [formUrl, setFormUrl] = useState(localStorage.getItem('petgestor_form_url') || PREDEFINED_FORM_URL);
   const [isSyncing, setIsSyncing] = useState(false);
 
   const saveConfig = () => {
@@ -190,17 +185,18 @@ const ClientManager: React.FC<{
       return;
     }
     if (!sheetId) {
-      alert("Configure o ID da Planilha primeiro.");
+      alert("ID da Planilha não configurado.");
       setShowConfig(true);
       return;
     }
 
     setIsSyncing(true);
     try {
-      const rows = await googleService.getSheetValues(accessToken, sheetId, 'Página1!A:M'); 
+      // ATENÇÃO: Mudança para ler a aba CADASTRO
+      const rows = await googleService.getSheetValues(accessToken, sheetId, 'CADASTRO!A:M'); 
       
       if (!rows || rows.length < 2) {
-        alert("Planilha vazia ou formato inválido.");
+        alert("Planilha vazia ou aba 'CADASTRO' não encontrada.");
         setIsSyncing(false);
         return;
       }
@@ -256,11 +252,11 @@ const ClientManager: React.FC<{
 
       const newClientList = Array.from(clientsMap.values());
       onSyncClients(newClientList);
-      alert(`${newClientList.length} clientes sincronizados com sucesso!`);
+      alert(`${newClientList.length} clientes sincronizados com sucesso da aba CADASTRO!`);
 
     } catch (error) {
       console.error(error);
-      alert("Erro ao sincronizar. Verifique se o ID da planilha está correto e se você tem permissão de acesso.");
+      alert("Erro ao sincronizar. Verifique se o ID da planilha está correto, se a aba 'CADASTRO' existe e se você tem permissão de acesso.");
     } finally {
       setIsSyncing(false);
     }
@@ -308,7 +304,7 @@ const ClientManager: React.FC<{
           </h3>
           
           <div className="bg-white p-4 rounded border border-yellow-100 mb-4 text-sm text-gray-700">
-             <p className="font-bold mb-2">Estrutura do Formulário (Ordem das Perguntas):</p>
+             <p className="font-bold mb-2">Estrutura do Formulário (Aba "CADASTRO"):</p>
              <ol className="list-decimal list-inside space-y-1 ml-2 text-xs md:text-sm">
                 <li>Nome do cliente</li>
                 <li>Telefone</li>
@@ -355,7 +351,7 @@ const ClientManager: React.FC<{
       {clients.length === 0 && !showConfig ? (
           <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
               <p className="text-gray-500 mb-2">Nenhum cliente encontrado.</p>
-              <p className="text-sm text-gray-400">Configure a planilha e clique em Sincronizar.</p>
+              <p className="text-sm text-gray-400">Clique em "Sincronizar Planilha" para carregar os dados.</p>
           </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -641,7 +637,8 @@ const App: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   
   // Auth State
-  const [isConfigured, setIsConfigured] = useState(false);
+  // Iniciamos como TRUE para usar o ID padrão e pular a tela de Setup
+  const [isConfigured, setIsConfigured] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
 
@@ -652,13 +649,13 @@ const App: React.FC = () => {
     setServices(db.getServices());
     setAppointments(db.getAppointments());
 
-    // 2. Check for Config
-    const storedClientId = localStorage.getItem('petgestor_client_id');
-    if (storedClientId) {
-        setIsConfigured(true);
-        // Only init auth if we have a config
-        initAuthLogic(); 
+    // 2. Garante que o ID padrão está no localStorage para o serviço funcionar
+    if (!localStorage.getItem('petgestor_client_id')) {
+        localStorage.setItem('petgestor_client_id', DEFAULT_CLIENT_ID);
     }
+    
+    // Inicia a lógica de autenticação imediatamente
+    initAuthLogic();
   }, []);
 
   const initAuthLogic = () => {
@@ -751,7 +748,7 @@ const App: React.FC = () => {
 
   // --- RENDER LOGIC ---
 
-  // 1. Not Configured -> Show Setup
+  // 1. Not Configured -> Show Setup (Only if user resets)
   if (!isConfigured) {
       return <SetupScreen onSave={handleSaveConfig} />;
   }

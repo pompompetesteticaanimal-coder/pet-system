@@ -2,17 +2,19 @@
 declare var google: any;
 
 const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets.readonly';
+export const DEFAULT_CLIENT_ID = '283638384975-nt1pilc761qt69otu2dapf8ek0n6hvac.apps.googleusercontent.com';
 
 export const googleService = {
   tokenClient: null as any,
   
   init: (callback: (tokenResponse: any) => void) => {
     if (typeof google !== 'undefined' && google.accounts) {
-      const clientId = localStorage.getItem('petgestor_client_id');
+      // Usa o ID salvo ou o padrão hardcoded
+      const clientId = localStorage.getItem('petgestor_client_id') || DEFAULT_CLIENT_ID;
       
-      if (!clientId) {
-        console.warn('Google Client ID não configurado.');
-        return;
+      // Salva no localStorage para consistência se estiver usando o padrão
+      if (!localStorage.getItem('petgestor_client_id')) {
+        localStorage.setItem('petgestor_client_id', DEFAULT_CLIENT_ID);
       }
 
       googleService.tokenClient = google.accounts.oauth2.initTokenClient({
@@ -30,7 +32,7 @@ export const googleService = {
       googleService.tokenClient.requestAccessToken();
     } else {
       // Tenta recuperar caso tenha falhado na init
-      const clientId = localStorage.getItem('petgestor_client_id');
+      const clientId = localStorage.getItem('petgestor_client_id') || DEFAULT_CLIENT_ID;
       if (!clientId) {
           alert('ID do cliente não encontrado. Reinicie a configuração.');
           return;
