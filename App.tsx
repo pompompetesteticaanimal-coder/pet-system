@@ -9,7 +9,7 @@ import {
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
   RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
   ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
-  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle
+  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -194,7 +194,7 @@ const Dashboard: React.FC<{
   );
 };
 
-// 3.5 Payment Manager (RESPONSIVE CARDS)
+// 3.5 Payment Manager (RESPONSIVE CARDS & GROUPS)
 const PaymentManager: React.FC<{
     appointments: Appointment[];
     clients: Client[];
@@ -203,12 +203,22 @@ const PaymentManager: React.FC<{
     accessToken: string | null;
     sheetId: string;
 }> = ({ appointments, clients, services, onUpdateAppointment, accessToken, sheetId }) => {
-    const [viewMode, setViewMode] = useState<'daily' | 'pending'>('daily');
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Group visibility state
+    const [groups, setGroups] = useState({
+        toReceive: true,
+        pending: false,
+        paid: false
+    });
+
+    const toggleGroup = (key: 'toReceive' | 'pending' | 'paid') => {
+        setGroups(prev => ({...prev, [key]: !prev[key]}));
+    };
 
     // Swipe Refs
     const touchStart = useRef<number | null>(null);
@@ -217,18 +227,23 @@ const PaymentManager: React.FC<{
 
     // Filter Logic
     const todayStr = new Date().toISOString().split('T')[0];
-
-    const dailyApps = appointments.filter(a => a.date.startsWith(selectedDate));
     
-    // Pending: Date < Today AND (paidAmount is missing/0 OR paymentMethod is missing)
+    // 1. Pending (Past & Unpaid)
     const pendingApps = appointments.filter(a => {
         const appDate = a.date.split('T')[0];
         const isPast = appDate < todayStr;
-        const isUnpaid = !a.paymentMethod || a.paymentMethod.trim() === ''; // Relies on Column S being blank
+        const isUnpaid = !a.paymentMethod || a.paymentMethod.trim() === ''; 
         return isPast && isUnpaid;
-    }).sort((a,b) => b.date.localeCompare(a.date)); // Sort by date desc
+    }).sort((a,b) => b.date.localeCompare(a.date));
 
-    const displayedApps = viewMode === 'daily' ? dailyApps : pendingApps;
+    // Daily Apps
+    const dailyApps = appointments.filter(a => a.date.startsWith(selectedDate));
+    
+    // 2. To Receive (Selected Date & Unpaid)
+    const toReceiveApps = dailyApps.filter(a => !a.paymentMethod || a.paymentMethod.trim() === '');
+
+    // 3. Paid (Selected Date & Paid)
+    const paidApps = dailyApps.filter(a => a.paymentMethod && a.paymentMethod.trim() !== '');
 
     const navigateDate = (days: number) => {
         const [year, month, day] = selectedDate.split('-').map(Number);
@@ -253,18 +268,12 @@ const PaymentManager: React.FC<{
 
     const onTouchEnd = () => {
         if (!touchStart.current || !touchEnd.current) return;
-        if (viewMode === 'pending') return; // Disable swipe date change on pending view
-
         const distance = touchStart.current - touchEnd.current;
         const isLeftSwipe = distance > minSwipeDistance;
         const isRightSwipe = distance < -minSwipeDistance;
 
-        if (isLeftSwipe) {
-            navigateDate(1); // Swipe Left -> Next Day
-        }
-        if (isRightSwipe) {
-            navigateDate(-1); // Swipe Right -> Prev Day
-        }
+        if (isLeftSwipe) navigateDate(1); // Swipe Left -> Next Day
+        if (isRightSwipe) navigateDate(-1); // Swipe Right -> Prev Day
     };
 
     const calculateExpected = (app: Appointment) => {
@@ -296,7 +305,6 @@ const PaymentManager: React.FC<{
                 const index = parseInt(parts[1]);
                 const rowNumber = index + 2;
                 
-                // Columns R (17) and S (18) in the Sheet "Agendamento"
                 const range = `Agendamento!R${rowNumber}:S${rowNumber}`;
                 const values = [finalAmount.toString().replace('.', ','), method];
                 
@@ -313,23 +321,21 @@ const PaymentManager: React.FC<{
         setIsSaving(false);
     };
 
-    const PaymentRow = ({ app, isMobile }: {app: Appointment, isMobile: boolean}) => {
+    const PaymentRow = ({ app, colorClass }: {app: Appointment, colorClass?: string}) => {
         const client = clients.find(c => c.id === app.clientId);
         const pet = client?.pets.find(p => p.id === app.petId);
         const mainSvc = services.find(s => s.id === app.serviceId);
         const expected = calculateExpected(app);
         const isPaid = !!app.paidAmount && !!app.paymentMethod;
-
         const isEditing = editingId === app.id;
 
-        // Content
         if(isEditing) {
             return (
-                <div className={`bg-brand-50 border border-brand-200 p-4 ${isMobile ? 'rounded-lg mb-4' : ''}`}>
+                <div className="bg-brand-50 border border-brand-200 p-4 rounded-lg mb-4 shadow-sm animate-fade-in">
                     <div className="flex flex-col gap-3">
                          <div className="flex justify-between items-center">
                              <span className="font-bold text-gray-800">{pet?.name} <span className="text-gray-500 font-normal">({client?.name})</span></span>
-                             {isMobile && <span className="text-xs text-gray-500">Editando...</span>}
+                             <span className="text-xs text-gray-500">Editando...</span>
                          </div>
                          <div className="grid grid-cols-2 gap-2">
                              <div>
@@ -358,14 +364,13 @@ const PaymentManager: React.FC<{
         }
 
         return (
-            <div className={`p-4 ${isMobile ? 'bg-white rounded-lg shadow-sm border border-gray-100 mb-4' : ''}`}>
+            <div className={`p-4 bg-white rounded-lg shadow-sm border border-gray-100 mb-2 ${colorClass}`}>
                 <div className="flex justify-between items-start mb-2">
                     <div>
                         <div className="text-lg font-bold text-gray-800">{pet?.name}</div>
                         <div className="text-sm text-gray-500">{client?.name}</div>
                         <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                            {viewMode === 'pending' && <span className="text-red-500 font-bold mr-1">{new Date(app.date).toLocaleDateString('pt-BR')}</span>}
-                            <Clock size={12}/> {new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
+                            <Clock size={12}/> {new Date(app.date).toLocaleDateString('pt-BR')} - {new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
                         </div>
                     </div>
                     <div className="text-right">
@@ -376,7 +381,7 @@ const PaymentManager: React.FC<{
                             </div>
                         ) : (
                             <div className="inline-block bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                {viewMode === 'pending' ? 'Atrasado' : 'Pendente'}
+                                Pendente
                             </div>
                         )}
                     </div>
@@ -394,6 +399,43 @@ const PaymentManager: React.FC<{
         )
     };
 
+    const AccordionGroup = ({ 
+        title, 
+        count, 
+        isOpen, 
+        onToggle, 
+        color, 
+        children 
+    }: { 
+        title: string; 
+        count: number; 
+        isOpen: boolean; 
+        onToggle: () => void; 
+        color: string;
+        children: React.ReactNode 
+    }) => (
+        <div className="mb-4">
+            <button 
+                onClick={onToggle}
+                className={`w-full flex items-center justify-between p-4 rounded-lg shadow-sm border transition-all ${isOpen ? 'bg-white rounded-b-none border-b-0' : 'bg-white hover:bg-gray-50'}`}
+                style={{borderLeft: `4px solid ${color}`}}
+            >
+                <div className="flex items-center gap-3">
+                    {isOpen ? <ChevronDown size={20} className="text-gray-400"/> : <ChevronRight size={20} className="text-gray-400"/>}
+                    <span className="font-bold text-gray-800">{title}</span>
+                    {count > 0 && <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-bold">{count}</span>}
+                </div>
+            </button>
+            
+            {isOpen && (
+                <div className="bg-gray-50 p-4 rounded-b-lg border-x border-b border-gray-200">
+                    {children}
+                    {count === 0 && <div className="text-center text-gray-400 text-sm py-2">Nenhum item nesta lista.</div>}
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <div 
             className="space-y-4 h-full flex flex-col"
@@ -404,26 +446,7 @@ const PaymentManager: React.FC<{
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-shrink-0">
                 <h2 className="text-2xl font-bold text-gray-800">Pagamentos</h2>
                 
-                {/* View Toggles */}
-                <div className="flex bg-gray-200 p-1 rounded-lg">
-                    <button 
-                        onClick={() => setViewMode('daily')}
-                        className={`px-4 py-2 text-sm font-bold rounded-md transition ${viewMode === 'daily' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}
-                    >
-                        Caixa do Dia
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('pending')}
-                        className={`px-4 py-2 text-sm font-bold rounded-md transition flex items-center gap-2 ${viewMode === 'pending' ? 'bg-white shadow text-red-600' : 'text-gray-500'}`}
-                    >
-                        Pendentes
-                        {pendingApps.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingApps.length}</span>}
-                    </button>
-                </div>
-            </div>
-
-            {/* Date Navigation (Only for Daily View) */}
-            {viewMode === 'daily' && (
+                {/* Date Navigation */}
                 <div className="flex items-center gap-2 w-full md:w-auto bg-white p-1 rounded-lg border shadow-sm flex-shrink-0">
                     <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
                         <ChevronLeft size={20} />
@@ -444,108 +467,44 @@ const PaymentManager: React.FC<{
                         className="border-l pl-2 ml-2 outline-none text-sm text-gray-700 font-medium bg-transparent"
                     />
                 </div>
-            )}
-            
-            {viewMode === 'pending' && (
-                <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-red-800 text-sm flex items-center gap-2">
-                    <AlertCircle size={18} />
-                    Mostrando pagamentos em aberto anteriores a hoje.
-                </div>
-            )}
-
-            {/* Mobile View (Cards) */}
-            <div className="md:hidden flex-1 overflow-y-auto min-h-0">
-                {displayedApps.map(app => (
-                    <PaymentRow key={app.id} app={app} isMobile={true} />
-                ))}
-                {displayedApps.length === 0 && (
-                    <div className="text-center p-8 text-gray-400 bg-white rounded-xl border border-dashed flex flex-col items-center justify-center h-48">
-                        <p>{viewMode === 'daily' ? 'Nenhum agendamento para este dia.' : 'Tudo em dia! Nenhum pagamento pendente.'}</p>
-                        {viewMode === 'daily' && <p className="text-xs mt-2 opacity-60">Deslize para mudar o dia</p>}
-                    </div>
-                )}
             </div>
 
-            {/* Desktop View (Table) */}
-            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 min-h-0 overflow-y-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente/Pet</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serviços</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ação</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {displayedApps.map(app => {
-                            if (editingId === app.id) {
-                                return (
-                                    <tr key={app.id} className="bg-brand-50">
-                                        <td colSpan={6} className="p-0">
-                                            <div className="flex items-center gap-4 p-4">
-                                                <div className="font-bold text-gray-800">{clients.find(c=>c.id===app.clientId)?.pets.find(p=>p.id===app.petId)?.name}</div>
-                                                <div className="flex items-center gap-2">
-                                                    <span>R$</span>
-                                                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="border p-1 rounded w-24" />
-                                                </div>
-                                                <select value={method} onChange={e => setMethod(e.target.value)} className="border p-1 rounded w-32 bg-white">
-                                                    <option value="Credito">Crédito</option>
-                                                    <option value="Debito">Débito</option>
-                                                    <option value="Pix">Pix</option>
-                                                    <option value="Dinheiro">Dinheiro</option>
-                                                </select>
-                                                <button onClick={() => handleSave(app)} disabled={isSaving} className="bg-green-600 text-white px-3 py-1 rounded text-sm font-bold">Salvar</button>
-                                                <button onClick={() => setEditingId(null)} className="text-gray-500 px-2 text-sm">Cancelar</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )
-                            }
-                            const client = clients.find(c => c.id === app.clientId);
-                            const pet = client?.pets.find(p => p.id === app.petId);
-                            const mainSvc = services.find(s => s.id === app.serviceId);
-                            const expected = calculateExpected(app);
-                            const isPaid = !!app.paidAmount && !!app.paymentMethod;
+            {/* Groups */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+                
+                {/* 1. A Receber */}
+                <AccordionGroup 
+                    title="A Receber (Dia Selecionado)" 
+                    count={toReceiveApps.length} 
+                    isOpen={groups.toReceive} 
+                    onToggle={() => toggleGroup('toReceive')}
+                    color="#f59e0b" // Orange/Amber
+                >
+                    {toReceiveApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-yellow-400" />)}
+                </AccordionGroup>
 
-                            return (
-                                <tr key={app.id}>
-                                    <td className="px-6 py-4">
-                                        {viewMode === 'pending' && <div className="text-xs text-red-500 font-bold mb-1">{new Date(app.date).toLocaleDateString('pt-BR')}</div>}
-                                        <div className="text-sm text-gray-900 font-bold">{new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-sm font-bold text-gray-800">{pet?.name}</div>
-                                        <div className="text-xs text-gray-500">{client?.name}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-xs text-gray-600">
-                                        <div>{mainSvc?.name}</div>
-                                        {app.additionalServiceIds?.map(id => services.find(s=>s.id===id)?.name).join(', ')}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm font-bold text-gray-800">R$ {expected.toFixed(2)}</td>
-                                    <td className="px-6 py-4">
-                                        {isPaid ? (
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                Pago ({app.paymentMethod})
-                                            </span>
-                                        ) : (
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewMode === 'pending' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                {viewMode === 'pending' ? 'Atrasado' : 'Pendente'}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <button onClick={() => handleStartEdit(app)} className="text-brand-600 font-medium text-xs hover:underline">
-                                            Receber
-                                        </button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                {/* 2. Pendentes (Atrasados) */}
+                <AccordionGroup 
+                    title="Pendentes (Atrasados)" 
+                    count={pendingApps.length} 
+                    isOpen={groups.pending} 
+                    onToggle={() => toggleGroup('pending')}
+                    color="#ef4444" // Red
+                >
+                    {pendingApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-red-500 bg-red-50/30" />)}
+                </AccordionGroup>
+
+                {/* 3. Pagos */}
+                <AccordionGroup 
+                    title="Pagos (Dia Selecionado)" 
+                    count={paidApps.length} 
+                    isOpen={groups.paid} 
+                    onToggle={() => toggleGroup('paid')}
+                    color="#22c55e" // Green
+                >
+                    {paidApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-green-500 opacity-90" />)}
+                </AccordionGroup>
+
             </div>
         </div>
     )

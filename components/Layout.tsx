@@ -61,14 +61,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
     if (!touchStart.current || !touchEnd.current) return;
     const distance = touchStart.current - touchEnd.current;
     const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
+    // const isRightSwipe = distance < -minSwipeDistance; // Logic removed requested by user
 
-    if (isRightSwipe) {
-      // Open Menu (Swipe L -> R)
-      setIsSidebarOpen(true);
-    }
-    if (isLeftSwipe) {
-      // Close Menu (Swipe R -> L)
+    // Only allow closing via swipe, not opening
+    if (isLeftSwipe && isSidebarOpen) {
       setIsSidebarOpen(false);
     }
   }
