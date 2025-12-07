@@ -1,11 +1,6 @@
 
 declare var google: any;
 
-// Função para buscar o ID salvo ou usar o placeholder
-const getClientId = () => {
-  return localStorage.getItem('petgestor_client_id') || '283638384975-nt1pilc761qt69otu2dapf8ek0n6hvac.apps.googleusercontent.com';
-};
-
 const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets.readonly';
 
 export const googleService = {
@@ -13,10 +8,9 @@ export const googleService = {
   
   init: (callback: (tokenResponse: any) => void) => {
     if (typeof google !== 'undefined' && google.accounts) {
-      const clientId = getClientId();
+      const clientId = localStorage.getItem('petgestor_client_id');
       
-      // Só inicializa se tiver um ID que não seja o placeholder padrão
-      if (clientId === '283638384975-nt1pilc761qt69otu2dapf8ek0n6hvac.apps.googleusercontent.com') {
+      if (!clientId) {
         console.warn('Google Client ID não configurado.');
         return;
       }
@@ -32,18 +26,16 @@ export const googleService = {
   },
 
   login: () => {
-    // Verifica novamente antes de tentar logar
-    const clientId = getClientId();
-    if (clientId === '283638384975-nt1pilc761qt69otu2dapf8ek0n6hvac.apps.googleusercontent.com') {
-        alert('Por favor, vá em Clientes > Configurações e configure seu ID do Cliente Google (OAuth) primeiro.');
-        return;
-    }
-
     if (googleService.tokenClient) {
       googleService.tokenClient.requestAccessToken();
     } else {
-      // Tenta reinicializar caso o script tenha carregado depois
-      alert('Serviço Google não está pronto ou ID inválido. Recarregue a página.');
+      // Tenta recuperar caso tenha falhado na init
+      const clientId = localStorage.getItem('petgestor_client_id');
+      if (!clientId) {
+          alert('ID do cliente não encontrado. Reinicie a configuração.');
+          return;
+      }
+      alert('Sistema de login carregando... tente novamente em 2 segundos.');
     }
   },
 

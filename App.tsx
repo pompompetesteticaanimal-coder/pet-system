@@ -1,116 +1,803 @@
 
-declare var google: any;
+import React, { useState, useEffect } from 'react';
+import { HashRouter } from 'react-router-dom';
+import { Layout } from './components/Layout';
+import { db } from './services/db';
+import { googleService } from './services/googleCalendar';
+import { Client, Service, Appointment, ViewState, Pet, GoogleUser } from './types';
+import { 
+  Plus, Trash2, Check, X, 
+  Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
+  RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock
+} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
-// Função para buscar o ID salvo ou usar o placeholder
-const getClientId = () => {
-  return localStorage.getItem('petgestor_client_id') || 'YOUR_GOOGLE_CLIENT_ID_HERE';
+// --- Sub-Components ---
+
+// 1. Setup Screen (First run)
+const SetupScreen: React.FC<{ onSave: (id: string) => void }> = ({ onSave }) => {
+    const [clientId, setClientId] = useState('');
+
+    return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg border border-gray-100 text-center">
+                <div className="w-16 h-16 bg-brand-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-6">P</div>
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">Configuração Inicial</h1>
+                <p className="text-gray-500 mb-6">Para conectar com Google Agenda e Planilhas, precisamos do seu ID de Cliente Google.</p>
+
+                <div className="text-left bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6 text-sm text-blue-800">
+                    <p className="font-bold mb-2 flex items-center gap-2"><ShieldAlert size={16}/> Importante:</p>
+                    <p>No Google Cloud Console, adicione estas URLs em <strong>Origens JavaScript autorizadas</strong>:</p>
+                    <ul className="list-disc list-inside mt-2 font-mono text-xs space-y-1">
+                        <li>http://localhost:5173</li>
+                        <li>https://seu-projeto-vercel.app (Link do seu site)</li>
+                    </ul>
+                </div>
+
+                <div className="text-left mb-6">
+                    <label className="block text-xs font-bold text-gray-600 uppercase mb-1">ID do Cliente (OAuth 2.0)</label>
+                    <input 
+                        value={clientId}
+                        onChange={(e) => setClientId(e.target.value)}
+                        placeholder="Ex: 1234...apps.googleusercontent.com"
+                        className="w-full border p-3 rounded-lg focus:ring-2 ring-brand-500 outline-none font-mono text-sm"
+                    />
+                </div>
+
+                <button 
+                    onClick={() => {
+                        if(clientId.trim().length > 10) onSave(clientId);
+                        else alert("ID inválido");
+                    }}
+                    className="w-full bg-brand-600 text-white py-3 rounded-xl font-bold hover:bg-brand-700 transition"
+                >
+                    Salvar e Continuar
+                </button>
+            </div>
+        </div>
+    );
 };
 
-const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets.readonly';
+// 2. Login Screen (Gatekeeper)
+const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ onLogin, onReset }) => {
+    return (
+        <div className="min-h-screen bg-brand-50 flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
+                <div className="w-20 h-20 bg-brand-600 rounded-3xl flex items-center justify-center text-white font-bold text-4xl mx-auto mb-6 shadow-lg shadow-brand-200">P</div>
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">Bem-vindo</h1>
+                <p className="text-gray-500 mb-8">Faça login para acessar sua agenda e clientes.</p>
 
-export const googleService = {
-  tokenClient: null as any,
+                <button 
+                    onClick={onLogin}
+                    className="w-full bg-white border-2 border-gray-200 hover:border-brand-500 hover:bg-brand-50 text-gray-700 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all group"
+                >
+                    <div className="bg-white p-1 rounded-full"><LogIn className="text-brand-600 group-hover:scale-110 transition-transform" /></div>
+                    Entrar com Google
+                </button>
+
+                <button onClick={onReset} className="mt-8 text-xs text-gray-400 hover:text-red-500 underline">
+                    Configurar novo Client ID
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// 3. Dashboard Component
+const Dashboard: React.FC<{ 
+  appointments: Appointment[]; 
+  services: Service[];
+  clients: Client[];
+}> = ({ appointments, services, clients }) => {
+  const today = new Date().toISOString().split('T')[0];
+  const todaysAppointments = appointments.filter(a => a.date.startsWith(today));
   
-  init: (callback: (tokenResponse: any) => void) => {
-    if (typeof google !== 'undefined' && google.accounts) {
-      const clientId = getClientId();
+  const totalRevenue = todaysAppointments.reduce((acc, curr) => {
+    const s = services.find(srv => srv.id === curr.serviceId);
+    return acc + (s?.price || 0);
+  }, 0);
+
+  const pending = todaysAppointments.filter(a => a.status === 'agendado').length;
+  const completed = todaysAppointments.filter(a => a.status === 'concluido').length;
+
+  const chartData = [
+    { name: 'Agendados', value: pending },
+    { name: 'Concluídos', value: completed },
+    { name: 'Cancelados', value: todaysAppointments.filter(a => a.status === 'cancelado').length }
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Faturamento Hoje</p>
+              <h3 className="text-2xl font-bold text-gray-800">R$ {totalRevenue.toFixed(2)}</h3>
+            </div>
+            <div className="bg-green-100 p-3 rounded-full text-green-600">
+              <DollarSign size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Agendamentos Hoje</p>
+              <h3 className="text-2xl font-bold text-gray-800">{todaysAppointments.length}</h3>
+            </div>
+            <div className="bg-blue-100 p-3 rounded-full text-blue-600">
+              <CalendarIcon size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+             <div>
+              <p className="text-sm text-gray-500">Clientes Ativos</p>
+              <h3 className="text-2xl font-bold text-gray-800">{clients.length}</h3>
+            </div>
+            <div className="bg-purple-100 p-3 rounded-full text-purple-600">
+              <Sparkles size={24} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-64 flex flex-col">
+        <h3 className="font-semibold text-gray-700 mb-4">Status dos Agendamentos (Hoje)</h3>
+        <div className="flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                    <Tooltip cursor={{fill: 'transparent'}} />
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                        {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={index === 0 ? '#3b82f6' : index === 1 ? '#22c55e' : '#ef4444'} />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 4. Client Manager
+const ClientManager: React.FC<{
+  clients: Client[];
+  onSyncClients: (newClients: Client[]) => void;
+  onDeleteClient: (id: string) => void;
+  googleUser: GoogleUser | null;
+  accessToken: string | null;
+}> = ({ clients, onSyncClients, onDeleteClient, googleUser, accessToken }) => {
+  const [showConfig, setShowConfig] = useState(false);
+  const [sheetId, setSheetId] = useState(localStorage.getItem('petgestor_sheet_id') || '');
+  const [formUrl, setFormUrl] = useState(localStorage.getItem('petgestor_form_url') || '');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const saveConfig = () => {
+    localStorage.setItem('petgestor_sheet_id', sheetId);
+    localStorage.setItem('petgestor_form_url', formUrl);
+    setShowConfig(false);
+  };
+
+  const handleSync = async () => {
+    if (!accessToken) {
+      alert("Sessão expirada. Recarregue a página.");
+      return;
+    }
+    if (!sheetId) {
+      alert("Configure o ID da Planilha primeiro.");
+      setShowConfig(true);
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const rows = await googleService.getSheetValues(accessToken, sheetId, 'Página1!A:M'); 
       
-      // Só inicializa se tiver um ID que não seja o placeholder padrão
-      if (clientId === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
-        console.warn('Google Client ID não configurado.');
+      if (!rows || rows.length < 2) {
+        alert("Planilha vazia ou formato inválido.");
+        setIsSyncing(false);
         return;
       }
 
-      googleService.tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: SCOPES,
-        callback: callback,
+      const clientsMap = new Map<string, Client>();
+
+      rows.slice(1).forEach((row: string[], index: number) => {
+        const [
+          timestamp, 
+          name, 
+          phone, 
+          address, 
+          complement, 
+          petName, 
+          petAge, 
+          petGender,
+          petBreed, 
+          petSize, 
+          petCoat,
+          notes
+        ] = row;
+        
+        if (!name || !phone) return;
+
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        if (!clientsMap.has(cleanPhone)) {
+          clientsMap.set(cleanPhone, {
+            id: cleanPhone,
+            name: name,
+            phone: phone,
+            address: address || '',
+            complement: complement || '',
+            pets: []
+          });
+        }
+
+        const client = clientsMap.get(cleanPhone)!;
+        
+        if (petName) {
+          client.pets.push({
+            id: `${cleanPhone}_p_${index}`,
+            name: petName,
+            breed: petBreed || 'SRD',
+            age: petAge || '',
+            gender: petGender || '',
+            size: petSize || '',
+            coat: petCoat || '',
+            notes: notes || ''
+          });
+        }
       });
-    } else {
-      console.error('Google Identity Services script not loaded');
-    }
-  },
 
-  login: () => {
-    // Verifica novamente antes de tentar logar
-    const clientId = getClientId();
-    if (clientId === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
-        alert('Por favor, vá em Clientes > Configurações e configure seu ID do Cliente Google (OAuth) primeiro.');
-        return;
-    }
+      const newClientList = Array.from(clientsMap.values());
+      onSyncClients(newClientList);
+      alert(`${newClientList.length} clientes sincronizados com sucesso!`);
 
-    if (googleService.tokenClient) {
-      googleService.tokenClient.requestAccessToken();
-    } else {
-      // Tenta reinicializar caso o script tenha carregado depois
-      alert('Serviço Google não está pronto ou ID inválido. Recarregue a página.');
-    }
-  },
-
-  getUserProfile: async (accessToken: string) => {
-    try {
-      const response = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      return await response.json();
     } catch (error) {
-      console.error('Error fetching user profile', error);
-      return null;
+      console.error(error);
+      alert("Erro ao sincronizar. Verifique se o ID da planilha está correto e se você tem permissão de acesso.");
+    } finally {
+      setIsSyncing(false);
     }
-  },
+  };
 
-  createEvent: async (accessToken: string, eventDetails: {
-    summary: string;
-    description: string;
-    startTime: string; // ISO string
-    durationMin: number;
-  }) => {
-    const start = new Date(eventDetails.startTime);
-    const end = new Date(start.getTime() + eventDetails.durationMin * 60000);
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-800">Clientes e Pets</h2>
+        
+        <div className="flex gap-2 w-full md:w-auto">
+             {formUrl && (
+                <a 
+                  href={formUrl} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition text-sm flex-1 md:flex-none justify-center"
+                >
+                  <ExternalLink size={16} /> Abrir Formulário
+                </a>
+             )}
+             
+             <button 
+                onClick={handleSync} 
+                disabled={isSyncing}
+                className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition text-sm flex-1 md:flex-none justify-center disabled:opacity-70"
+             >
+                <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} /> 
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar Planilha'}
+             </button>
 
-    const event = {
-      summary: eventDetails.summary,
-      description: eventDetails.description,
-      start: {
-        dateTime: start.toISOString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      end: {
-        dateTime: end.toISOString(),
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
+             <button 
+                onClick={() => setShowConfig(!showConfig)}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-700 p-2 rounded-lg"
+             >
+                <Settings size={20} />
+             </button>
+        </div>
+      </div>
+
+      {showConfig && (
+        <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 shadow-sm animate-fade-in-down">
+          <h3 className="text-lg font-semibold mb-4 text-yellow-800 flex items-center gap-2">
+            <Settings size={18} /> Configurações do Sistema
+          </h3>
+          
+          <div className="bg-white p-4 rounded border border-yellow-100 mb-4 text-sm text-gray-700">
+             <p className="font-bold mb-2">Estrutura do Formulário (Ordem das Perguntas):</p>
+             <ol className="list-decimal list-inside space-y-1 ml-2 text-xs md:text-sm">
+                <li>Nome do cliente</li>
+                <li>Telefone</li>
+                <li>Endereço</li>
+                <li>Complemento</li>
+                <li>Nome do Pet</li>
+                <li>Idade</li>
+                <li>Sexo (Macho/Fêmea)</li>
+                <li>Raça</li>
+                <li>Porte (Pequeno/Médio/Grande)</li>
+                <li>Pelagem (Curto/Longo)</li>
+                <li>Obs</li>
+             </ol>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase mb-1">ID da Planilha Google</label>
+                <input 
+                    placeholder="Ex: 1BxiMVs0XRA5nFMdKvBdBZj..." 
+                    className="w-full border p-2 rounded focus:ring-2 ring-yellow-400 outline-none" 
+                    value={sheetId} 
+                    onChange={e => setSheetId(e.target.value)} 
+                />
+            </div>
+            <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Link do Formulário</label>
+                <input 
+                    placeholder="Ex: https://forms.gle/..." 
+                    className="w-full border p-2 rounded focus:ring-2 ring-yellow-400 outline-none" 
+                    value={formUrl} 
+                    onChange={e => setFormUrl(e.target.value)} 
+                />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-4">
+            <button onClick={() => setShowConfig(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Fechar</button>
+            <button onClick={saveConfig} className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700">Salvar Configurações</button>
+          </div>
+        </div>
+      )}
+
+      {clients.length === 0 && !showConfig ? (
+          <div className="text-center py-10 bg-white rounded-xl border border-dashed border-gray-300">
+              <p className="text-gray-500 mb-2">Nenhum cliente encontrado.</p>
+              <p className="text-sm text-gray-400">Configure a planilha e clique em Sincronizar.</p>
+          </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {clients.map(client => (
+            <div key={client.id} className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                    <div>
+                        <h3 className="font-bold text-gray-800">{client.name}</h3>
+                        <p className="text-sm text-gray-500">{client.phone}</p>
+                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <MapPin size={12} />
+                        {client.address} {client.complement && ` - ${client.complement}`}
+                        </p>
+                    </div>
+                    <button onClick={() => onDeleteClient(client.id)} className="text-red-400 hover:text-red-600" title="Remover da visualização (não apaga da planilha)"><Trash2 size={16} /></button>
+                </div>
+                <div className="space-y-2">
+                    {client.pets.map(pet => (
+                        <div key={pet.id} className="bg-brand-50 p-3 rounded-lg text-sm space-y-1">
+                            <div className="flex justify-between items-center border-b border-brand-100 pb-1 mb-1">
+                                <span className="font-bold text-brand-800 flex items-center gap-1">
+                                    <PawPrint size={12} /> {pet.name}
+                                </span>
+                                <span className="text-xs bg-white px-2 py-0.5 rounded text-brand-600 border border-brand-100">{pet.breed}</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-gray-600">
+                                {pet.gender && <div>Sexo: <span className="font-semibold">{pet.gender}</span></div>}
+                                {pet.age && <div>Idade: {pet.age}</div>}
+                                {pet.size && <div>Porte: {pet.size}</div>}
+                                {pet.coat && <div>Pelo: {pet.coat}</div>}
+                            </div>
+                            
+                            {pet.notes && (
+                                <div className="text-xs italic text-red-500 mt-1 bg-red-50 p-1 rounded border border-red-100">
+                                    Obs: {pet.notes}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// 5. Service Manager
+const ServiceManager: React.FC<{
+  services: Service[];
+  onAddService: (s: Service) => void;
+  onDeleteService: (id: string) => void;
+}> = ({ services, onAddService, onDeleteService }) => {
+    const [name, setName] = useState('');
+    const [price, setPrice] = useState('');
+    const [desc, setDesc] = useState('');
+
+    const handleAdd = () => {
+        if(name && price) {
+            onAddService({
+                id: Date.now().toString(),
+                name,
+                price: parseFloat(price),
+                description: desc,
+                durationMin: 60
+            });
+            setName(''); setPrice(''); setDesc('');
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+             <h2 className="text-2xl font-bold text-gray-800">Catálogo de Serviços</h2>
+             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
+                <div className="flex-1 w-full">
+                    <label className="text-xs font-semibold text-gray-500">Nome do Serviço</label>
+                    <input className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Banho Premium" />
+                </div>
+                <div className="w-full md:w-32">
+                    <label className="text-xs font-semibold text-gray-500">Valor (R$)</label>
+                    <input type="number" className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" />
+                </div>
+                <div className="flex-1 w-full">
+                    <label className="text-xs font-semibold text-gray-500">Descrição</label>
+                    <input className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Detalhes do serviço" />
+                </div>
+                <button onClick={handleAdd} className="bg-brand-600 text-white px-6 py-2 rounded hover:bg-brand-700 h-[42px]">Adicionar</button>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {services.map(s => (
+                    <div key={s.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center group">
+                        <div>
+                            <h4 className="font-bold text-gray-800">{s.name}</h4>
+                            <p className="text-sm text-gray-500">{s.description}</p>
+                            <span className="inline-block mt-2 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">R$ {s.price.toFixed(2)}</span>
+                        </div>
+                        <button onClick={() => onDeleteService(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 p-2 hover:bg-red-50 rounded"><Trash2 size={18} /></button>
+                    </div>
+                ))}
+             </div>
+        </div>
+    )
+}
+
+// 6. Schedule Manager
+const ScheduleManager: React.FC<{
+  appointments: Appointment[];
+  clients: Client[];
+  services: Service[];
+  onAdd: (a: Appointment) => void;
+  onUpdateStatus: (id: string, status: Appointment['status']) => void;
+  onDelete: (id: string) => void;
+  googleUser: GoogleUser | null;
+}> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete, googleUser }) => {
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [showModal, setShowModal] = useState(false);
+    
+    // Form State
+    const [selClient, setSelClient] = useState('');
+    const [selPet, setSelPet] = useState('');
+    const [selService, setSelService] = useState('');
+    const [selTime, setSelTime] = useState('09:00');
+
+    const filteredApps = appointments.filter(a => a.date.startsWith(selectedDate)).sort((a,b) => a.date.localeCompare(b.date));
+
+    const handleCreate = () => {
+        if(selClient && selPet && selService) {
+            onAdd({
+                id: Date.now().toString(),
+                clientId: selClient,
+                petId: selPet,
+                serviceId: selService,
+                date: `${selectedDate}T${selTime}`,
+                status: 'agendado'
+            });
+            setShowModal(false);
+        }
     };
 
-    try {
-      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(event),
-      });
-      return await response.json();
-    } catch (error) {
-      console.error('Error creating calendar event', error);
-      return null;
-    }
-  },
+    return (
+        <div className="h-full flex flex-col md:flex-row gap-6">
+            {/* Left: Calendar Picker & Form */}
+            <div className="md:w-1/3 space-y-6">
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                    <h3 className="font-bold text-gray-700 mb-4">Selecione a Data</h3>
+                    <input 
+                        type="date" 
+                        className="w-full p-3 border rounded-lg text-lg focus:ring-2 ring-brand-200 outline-none"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                    />
+                </div>
+                
+                <button onClick={() => setShowModal(true)} className="w-full bg-brand-600 text-white py-4 rounded-xl shadow-lg hover:bg-brand-700 transition flex items-center justify-center gap-2 font-bold text-lg">
+                    <Plus /> Novo Agendamento
+                </button>
 
-  getSheetValues: async (accessToken: string, spreadsheetId: string, range: string) => {
-    try {
-      const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      const data = await response.json();
-      return data.values;
-    } catch (error) {
-      console.error('Error fetching sheet data', error);
-      throw error;
+                {googleUser && (
+                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center gap-2 text-xs text-blue-800">
+                     <CalendarIcon size={14} />
+                     Sincronização com Google Calendar ativa.
+                   </div>
+                )}
+            </div>
+
+            {/* Right: Timeline */}
+            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-full overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                    <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                        <CalendarIcon size={18}/> 
+                        Agenda: {new Date(selectedDate).toLocaleDateString('pt-BR')}
+                    </h3>
+                </div>
+                <div className="flex-1 overflow-auto p-4 space-y-3">
+                    {filteredApps.length === 0 ? (
+                        <div className="text-center text-gray-400 mt-10">
+                            <p>Nenhum agendamento para este dia.</p>
+                        </div>
+                    ) : (
+                        filteredApps.map(app => {
+                            const client = clients.find(c => c.id === app.clientId);
+                            const pet = client?.pets.find(p => p.id === app.petId);
+                            const service = services.find(s => s.id === app.serviceId);
+                            const time = app.date.split('T')[1];
+
+                            return (
+                                <div key={app.id} className={`p-4 rounded-lg border-l-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all
+                                    ${app.status === 'concluido' ? 'border-green-500 bg-green-50/50' : 
+                                      app.status === 'cancelado' ? 'border-red-500 bg-red-50/50' : 'border-brand-500 bg-white'}`}>
+                                    
+                                    <div className="flex items-start gap-4">
+                                        <div className="text-xl font-bold text-gray-400">{time}</div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-800">{pet?.name} <span className="text-gray-500 font-normal">({client?.name})</span></h4>
+                                            <p className="text-sm text-brand-600 font-medium">{service?.name}</p>
+                                            <p className="text-xs text-gray-400">{service?.description}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {app.status === 'agendado' && (
+                                            <>
+                                                <button onClick={() => onUpdateStatus(app.id, 'concluido')} title="Concluir" className="p-2 text-green-500 hover:bg-green-50 rounded-full"><Check size={18} /></button>
+                                                <button onClick={() => onUpdateStatus(app.id, 'cancelado')} title="Cancelar" className="p-2 text-red-500 hover:bg-red-50 rounded-full"><X size={18} /></button>
+                                            </>
+                                        )}
+                                        {app.status === 'concluido' && (
+                                            <span className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded-full font-bold">
+                                                Concluído
+                                            </span>
+                                        )}
+                                        {app.status === 'cancelado' && <span className="text-red-500 text-sm font-medium">Cancelado</span>}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+
+            {/* Modal */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
+                        <h3 className="text-lg font-bold mb-4">Novo Agendamento</h3>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Horário</label>
+                                <input type="time" value={selTime} onChange={e => setSelTime(e.target.value)} className="w-full border p-2 rounded mt-1" />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Cliente</label>
+                                <select value={selClient} onChange={e => {setSelClient(e.target.value); setSelPet('');}} className="w-full border p-2 rounded mt-1">
+                                    <option value="">Selecione...</option>
+                                    {clients.map(c => <option key={c.id} value={c.name}>{c.name} - {c.phone}</option>)}
+                                </select>
+                                {clients.length === 0 && <p className="text-xs text-red-500 mt-1">Sincronize a planilha de clientes primeiro.</p>}
+                            </div>
+
+                            {selClient && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Pet</label>
+                                    <select value={selPet} onChange={e => setSelPet(e.target.value)} className="w-full border p-2 rounded mt-1">
+                                        <option value="">Selecione...</option>
+                                        {clients.find(c => c.name === selClient)?.pets.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Serviço</label>
+                                <select value={selService} onChange={e => setSelService(e.target.value)} className="w-full border p-2 rounded mt-1">
+                                    <option value="">Selecione...</option>
+                                    {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancelar</button>
+                            <button onClick={handleCreate} disabled={!selClient || !selPet || !selService} className="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700 disabled:opacity-50">Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const App: React.FC = () => {
+  const [currentView, setCurrentView] = useState<ViewState>('dashboard');
+  
+  // Data State
+  const [clients, setClients] = useState<Client[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  
+  // Auth State
+  const [isConfigured, setIsConfigured] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
+
+  // Initial Load and Auth Check
+  useEffect(() => {
+    // 1. Load Local Data
+    setClients(db.getClients());
+    setServices(db.getServices());
+    setAppointments(db.getAppointments());
+
+    // 2. Check for Config
+    const storedClientId = localStorage.getItem('petgestor_client_id');
+    if (storedClientId) {
+        setIsConfigured(true);
+        // Only init auth if we have a config
+        initAuthLogic(); 
+    }
+  }, []);
+
+  const initAuthLogic = () => {
+    if ((window as any).google) {
+        googleService.init(async (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+                setAccessToken(tokenResponse.access_token);
+                const profile = await googleService.getUserProfile(tokenResponse.access_token);
+                if (profile) {
+                    setGoogleUser({
+                        id: profile.id,
+                        name: profile.name,
+                        email: profile.email,
+                        picture: profile.picture
+                    });
+                }
+            }
+        });
+    } else {
+        setTimeout(initAuthLogic, 1000);
+    }
+  };
+
+  const handleSaveConfig = (id: string) => {
+      localStorage.setItem('petgestor_client_id', id);
+      setIsConfigured(true);
+      window.location.reload(); // Reload to ensure clean init
+  };
+
+  const handleResetConfig = () => {
+      localStorage.removeItem('petgestor_client_id');
+      setIsConfigured(false);
+      setGoogleUser(null);
+  };
+
+  // Handlers
+  const handleSyncClients = (newClients: Client[]) => {
+      setClients(newClients);
+      db.saveClients(newClients);
+  };
+  
+  const handleDeleteClient = (id: string) => {
+    const updated = clients.filter(c => c.id !== id);
+    setClients(updated);
+    db.saveClients(updated);
+  };
+
+  const handleAddService = (service: Service) => {
+    const updated = [...services, service];
+    setServices(updated);
+    db.saveServices(updated);
+  };
+  const handleDeleteService = (id: string) => {
+    const updated = services.filter(s => s.id !== id);
+    setServices(updated);
+    db.saveServices(updated);
+  }
+
+  const handleAddAppointment = async (app: Appointment) => {
+    const updated = [...appointments, app];
+    setAppointments(updated);
+    db.saveAppointments(updated);
+
+    if (accessToken) {
+        const client = clients.find(c => c.id === app.clientId || c.name === app.clientId); 
+        const pet = client?.pets.find(p => p.id === app.petId);
+        const service = services.find(s => s.id === app.serviceId);
+
+        if (client && pet && service) {
+            await googleService.createEvent(accessToken, {
+                summary: `Banho e Tosa: ${pet.name} (${client.name})`,
+                description: `Serviço: ${service.name}\nCliente: ${client.name}\nTelefone: ${client.phone}\nObs: ${pet.notes}`,
+                startTime: app.date,
+                durationMin: service.durationMin
+            });
+            alert('Agendamento sincronizado com Google Agenda!');
+        }
     }
   }
+  const handleUpdateAppStatus = (id: string, status: Appointment['status']) => {
+    const updated = appointments.map(a => a.id === id ? { ...a, status } : a);
+    setAppointments(updated);
+    db.saveAppointments(updated);
+  }
+  const handleDeleteApp = (id: string) => {
+     const updated = appointments.filter(a => a.id !== id);
+     setAppointments(updated);
+     db.saveAppointments(updated);
+  }
+
+  // --- RENDER LOGIC ---
+
+  // 1. Not Configured -> Show Setup
+  if (!isConfigured) {
+      return <SetupScreen onSave={handleSaveConfig} />;
+  }
+
+  // 2. Configured but not Logged in -> Show Login
+  if (!googleUser) {
+      return <LoginScreen onLogin={() => googleService.login()} onReset={handleResetConfig} />;
+  }
+
+  // 3. Logged In -> Show App
+  return (
+    <HashRouter>
+      <Layout 
+        currentView={currentView} 
+        setView={setCurrentView}
+        googleUser={googleUser}
+        onLogin={() => googleService.login()}
+        onLogout={() => { setAccessToken(null); setGoogleUser(null); }}
+      >
+        {currentView === 'dashboard' && <Dashboard appointments={appointments} services={services} clients={clients} />}
+        
+        {currentView === 'clients' && (
+            <ClientManager 
+                clients={clients} 
+                onSyncClients={handleSyncClients} 
+                onDeleteClient={handleDeleteClient}
+                googleUser={googleUser}
+                accessToken={accessToken}
+            />
+        )}
+
+        {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} />}
+        {currentView === 'schedule' && (
+            <ScheduleManager 
+                appointments={appointments} 
+                clients={clients} 
+                services={services}
+                onAdd={handleAddAppointment}
+                onUpdateStatus={handleUpdateAppStatus}
+                onDelete={handleDeleteApp}
+                googleUser={googleUser}
+            />
+        )}
+      </Layout>
+    </HashRouter>
+  );
 };
+
+export default App;
