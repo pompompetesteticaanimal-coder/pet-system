@@ -9,7 +9,7 @@ import {
   Plus, Trash2, Check, X, 
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
   RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
-  ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft
+  ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -561,6 +561,10 @@ const ScheduleManager: React.FC<{
     const [currentDate, setCurrentDate] = useState(new Date());
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    
+    // States for Details and Context Menu
+    const [selectedApp, setSelectedApp] = useState<Appointment | null>(null);
+    const [contextMenu, setContextMenu] = useState<{x: number, y: number, id: string} | null>(null);
 
     // Form State
     const [selDate, setSelDate] = useState('');
@@ -594,6 +598,14 @@ const ScheduleManager: React.FC<{
         else newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
         setCurrentDate(newDate);
     };
+
+    const getServiceColor = (name: string) => {
+        const lower = name.toLowerCase();
+        if (lower.includes('pacote')) return 'bg-purple-100 text-purple-800 border-purple-200';
+        if (lower.includes('banho')) return 'bg-blue-100 text-blue-800 border-blue-200';
+        if (lower.includes('tosa')) return 'bg-orange-100 text-orange-800 border-orange-200';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
 
     const filteredAppointments = appointments.filter(app => {
         if (!searchTerm) return true;
@@ -716,9 +728,22 @@ const ScheduleManager: React.FC<{
                         {daysApps.slice(0, 3).map(app => {
                             const client = clients.find(c => c.id === app.clientId);
                             const pet = client?.pets.find(p => p.id === app.petId);
+                            const service = services.find(s => s.id === app.serviceId);
                             const time = app.date.split('T')[1].substring(0, 5);
                             return (
-                                <div key={app.id} className={`text-[10px] p-1 rounded truncate ${app.status === 'concluido' ? 'bg-green-100 text-green-800' : app.status === 'cancelado' ? 'bg-red-100 text-red-800' : 'bg-brand-100 text-brand-800'}`}>
+                                <div 
+                                    key={app.id} 
+                                    className={`text-[10px] p-1 rounded truncate border cursor-pointer ${getServiceColor(service?.name || '')}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedApp(app);
+                                    }}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setContextMenu({ x: e.pageX, y: e.pageY, id: app.id });
+                                    }}
+                                >
                                     {time} {pet?.name}
                                 </div>
                             )
@@ -768,7 +793,6 @@ const ScheduleManager: React.FC<{
                     {Array.from({length: daysToShow}).map((_, i) => {
                         const d = addDays(start, i);
                         const dateStr = d.toISOString().split('T')[0];
-                        const fullDateStr = `${dateStr}T${String(h).padStart(2, '0')}`;
                         
                         // Find appointments for this hour slot
                         const slotApps = filteredAppointments.filter(app => {
@@ -799,16 +823,20 @@ const ScheduleManager: React.FC<{
                                     return (
                                         <div 
                                             key={app.id} 
-                                            className={`relative z-10 mb-1 p-2 rounded text-xs border shadow-sm cursor-pointer ${app.status === 'concluido' ? 'bg-green-100 border-green-200 text-green-800' : app.status === 'cancelado' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-brand-100 border-brand-200 text-brand-800'}`}
+                                            className={`relative z-10 mb-1 p-2 rounded text-xs border shadow-sm cursor-pointer ${getServiceColor(service?.name || '')}`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                const confirmStatus = window.confirm(`Alterar status para: ${app.status === 'agendado' ? 'Concluído' : 'Agendado'}? \n\nOu Cancelar clique em Cancelar no popup.`);
-                                                if(confirmStatus) onUpdateStatus(app.id, app.status === 'agendado' ? 'concluido' : 'agendado');
+                                                setSelectedApp(app);
+                                            }}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setContextMenu({ x: e.pageX, y: e.pageY, id: app.id });
                                             }}
                                         >
-                                            <div className="font-bold">{pet?.name}</div>
-                                            <div className="truncate">{client?.name}</div>
-                                            <div className="text-[10px] opacity-75">{service?.name}</div>
+                                            <div className="font-bold text-[10px] uppercase">{pet?.name}</div>
+                                            <div className="truncate text-[10px]">{client?.name}</div>
+                                            <div className="text-[9px] opacity-75">{service?.name}</div>
                                         </div>
                                     )
                                 })}
@@ -848,6 +876,117 @@ const ScheduleManager: React.FC<{
             <div className="flex-1 overflow-auto">
                 {view === 'month' ? renderMonth() : renderWeekOrDay()}
             </div>
+
+            {/* Context Menu for Delete */}
+            {contextMenu && (
+                <>
+                    <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)}></div>
+                    <div 
+                        className="fixed z-50 bg-white shadow-xl border rounded-lg overflow-hidden py-1 w-48 animate-fade-in"
+                        style={{ top: contextMenu.y, left: contextMenu.x }}
+                    >
+                        <button 
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
+                            onClick={() => {
+                                if(window.confirm("Excluir agendamento?")) {
+                                    onDelete(contextMenu.id);
+                                }
+                                setContextMenu(null);
+                            }}
+                        >
+                            <Trash2 size={16} /> Excluir Agendamento
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {/* Detail Modal */}
+            {selectedApp && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-fade-in-down overflow-hidden">
+                        <div className="bg-brand-50 p-6 border-b border-brand-100 flex justify-between items-start">
+                             <div>
+                                {(() => {
+                                    const client = clients.find(c => c.id === selectedApp.clientId);
+                                    const pet = client?.pets.find(p => p.id === selectedApp.petId);
+                                    return (
+                                        <>
+                                            <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                                <PawPrint className="text-brand-600"/> {pet?.name}
+                                            </h3>
+                                            <p className="text-gray-500 font-medium">{client?.name}</p>
+                                        </>
+                                    )
+                                })()}
+                             </div>
+                             <button onClick={() => setSelectedApp(null)} className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-600 shadow-sm"><X size={20}/></button>
+                        </div>
+                        
+                        <div className="p-6 space-y-6">
+                            {(() => {
+                                const client = clients.find(c => c.id === selectedApp.clientId);
+                                const pet = client?.pets.find(p => p.id === selectedApp.petId);
+                                const mainService = services.find(s => s.id === selectedApp.serviceId);
+                                
+                                return (
+                                    <>
+                                        {/* Contact Info */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <Phone size={18} className="text-brand-500" />
+                                                <span className="font-mono">{client?.phone}</span>
+                                            </div>
+                                            <div className="flex items-start gap-3 text-sm text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                                <MapPin size={18} className="text-brand-500 mt-0.5" />
+                                                <span>{client?.address} {client?.complement ? `- ${client.complement}` : ''}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Services */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1"><Sparkles size={12}/> Serviços Contratados</h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {mainService && (
+                                                    <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border ${getServiceColor(mainService.name)}`}>
+                                                        {mainService.name}
+                                                    </span>
+                                                )}
+                                                {selectedApp.additionalServiceIds?.map(id => {
+                                                    const s = services.find(sv => sv.id === id);
+                                                    if(!s) return null;
+                                                    return (
+                                                        <span key={id} className="px-3 py-1.5 rounded-lg text-sm font-medium border bg-gray-100 text-gray-600 border-gray-200">
+                                                            + {s.name}
+                                                        </span>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Notes */}
+                                        {selectedApp.notes && (
+                                            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                                                <h4 className="text-xs font-bold text-yellow-800 uppercase mb-1 flex items-center gap-1"><FileText size={12}/> Observações</h4>
+                                                <p className="text-sm text-yellow-900 italic">"{selectedApp.notes}"</p>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Time */}
+                                        <div className="pt-4 border-t flex justify-between items-center text-sm text-gray-500">
+                                            <span className="flex items-center gap-1">
+                                                <Clock size={16}/> {new Date(selectedApp.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
+                                            </span>
+                                            <span className="font-bold text-brand-600">
+                                                {new Date(selectedApp.date).toLocaleDateString('pt-BR')}
+                                            </span>
+                                        </div>
+                                    </>
+                                )
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal Novo Agendamento */}
             {showModal && (
