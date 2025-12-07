@@ -26,6 +26,9 @@ export interface Service {
   price: number;
   durationMin: number;
   description: string;
+  category: 'principal' | 'adicional';
+  targetSize?: string; // 'Pequeno' | 'Médio' | 'Grande' | 'Todos'
+  targetCoat?: string; // 'Curto' | 'Longo' | 'Todos'
 }
 
 export interface Appointment {

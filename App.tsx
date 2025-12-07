@@ -410,7 +410,7 @@ const ClientManager: React.FC<{
                                             <div key={idx} className="bg-brand-50 rounded p-2 text-xs border border-brand-100">
                                                 <div className="flex items-center justify-between font-bold text-brand-800">
                                                     <span className="flex items-center gap-1"><PawPrint size={10} /> {pet.name}</span>
-                                                    <span>{pet.breed}</span>
+                                                    <span>{pet.size}/{pet.coat}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -439,41 +439,103 @@ const ServiceManager: React.FC<{
     const [name, setName] = useState('');
     const [price, setPrice] = useState('');
     const [desc, setDesc] = useState('');
+    const [category, setCategory] = useState<'principal' | 'adicional'>('principal');
+    const [size, setSize] = useState('Todos');
+    const [coat, setCoat] = useState('Todos');
 
     const handleAdd = () => {
         if(name && price) {
-            onAddService({ id: Date.now().toString(), name, price: parseFloat(price), description: desc, durationMin: 60 });
+            onAddService({ 
+                id: Date.now().toString(), 
+                name, 
+                price: parseFloat(price), 
+                description: desc, 
+                durationMin: 60,
+                category,
+                targetSize: size,
+                targetCoat: coat
+            });
             setName(''); setPrice(''); setDesc('');
         }
     }
 
+    // Group services for display
+    const groupedServices = services.reduce((acc, curr) => {
+        const key = curr.category === 'principal' ? 'Principais' : 'Adicionais';
+        if(!acc[key]) acc[key] = [];
+        acc[key].push(curr);
+        return acc;
+    }, {} as Record<string, Service[]>);
+
     return (
         <div className="space-y-6">
              <h2 className="text-2xl font-bold text-gray-800">Catálogo de Serviços</h2>
-             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-end">
-                <div className="flex-1 w-full">
-                    <label className="text-xs font-semibold text-gray-500">Nome do Serviço</label>
-                    <input className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Banho Premium" />
+             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <h3 className="text-sm font-bold text-gray-500 uppercase mb-4">Adicionar Novo Serviço</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div className="md:col-span-2">
+                        <label className="text-xs font-semibold text-gray-500">Nome do Serviço</label>
+                        <input className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Banho Premium" />
+                    </div>
+                    <div>
+                         <label className="text-xs font-semibold text-gray-500">Categoria</label>
+                         <select className="w-full border p-2 rounded mt-1 bg-white" value={category} onChange={e => setCategory(e.target.value as any)}>
+                             <option value="principal">Principal</option>
+                             <option value="adicional">Adicional</option>
+                         </select>
+                    </div>
+                    <div>
+                        <label className="text-xs font-semibold text-gray-500">Valor (R$)</label>
+                        <input type="number" className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" />
+                    </div>
                 </div>
-                <div className="w-full md:w-32">
-                    <label className="text-xs font-semibold text-gray-500">Valor (R$)</label>
-                    <input type="number" className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={price} onChange={e => setPrice(e.target.value)} placeholder="0.00" />
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                     <div>
+                         <label className="text-xs font-semibold text-gray-500">Porte Alvo</label>
+                         <select className="w-full border p-2 rounded mt-1 bg-white" value={size} onChange={e => setSize(e.target.value)}>
+                             <option value="Todos">Todos</option>
+                             <option value="Pequeno">Pequeno</option>
+                             <option value="Médio">Médio</option>
+                             <option value="Grande">Grande</option>
+                         </select>
+                     </div>
+                     <div>
+                         <label className="text-xs font-semibold text-gray-500">Pelagem Alvo</label>
+                         <select className="w-full border p-2 rounded mt-1 bg-white" value={coat} onChange={e => setCoat(e.target.value)}>
+                             <option value="Todos">Todos</option>
+                             <option value="Curto">Curto</option>
+                             <option value="Longo">Longo</option>
+                         </select>
+                     </div>
+                     <div className="flex-1">
+                        <label className="text-xs font-semibold text-gray-500">Descrição</label>
+                        <input className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Detalhes" />
+                     </div>
+                     <button onClick={handleAdd} className="bg-brand-600 text-white px-6 py-2 rounded hover:bg-brand-700 h-[42px] font-bold">Adicionar</button>
                 </div>
-                <div className="flex-1 w-full">
-                    <label className="text-xs font-semibold text-gray-500">Descrição</label>
-                    <input className="w-full border p-2 rounded mt-1 focus:ring-2 ring-brand-200 outline-none" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Detalhes do serviço" />
-                </div>
-                <button onClick={handleAdd} className="bg-brand-600 text-white px-6 py-2 rounded hover:bg-brand-700 h-[42px]">Adicionar</button>
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {services.map(s => (
-                    <div key={s.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center group">
-                        <div>
-                            <h4 className="font-bold text-gray-800">{s.name}</h4>
-                            <p className="text-sm text-gray-500">{s.description}</p>
-                            <span className="inline-block mt-2 bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">R$ {s.price.toFixed(2)}</span>
-                        </div>
-                        <button onClick={() => onDeleteService(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 p-2 hover:bg-red-50 rounded"><Trash2 size={18} /></button>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {Object.entries(groupedServices).map(([cat, svcs]) => (
+                    <div key={cat} className="space-y-3">
+                        <h3 className="font-bold text-lg text-gray-700 border-b pb-2">{cat}</h3>
+                        {svcs.sort((a,b) => a.name.localeCompare(b.name)).map(s => (
+                            <div key={s.id} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center group">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-gray-800">{s.name}</h4>
+                                        <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">{s.targetSize?.substring(0,3)}/{s.targetCoat?.substring(0,3)}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500">{s.description}</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className={`text-sm font-bold px-2 py-1 rounded-full ${s.price === 0 ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
+                                        {s.price === 0 ? 'Grátis' : `R$ ${s.price.toFixed(2)}`}
+                                    </span>
+                                    <button onClick={() => onDeleteService(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ))}
              </div>
@@ -572,6 +634,26 @@ const ScheduleManager: React.FC<{
     };
 
     const filteredClientsForModal = clients.filter(c => c.name.toLowerCase().includes(searchClientModal.toLowerCase()) || c.phone.includes(searchClientModal));
+    
+    // Filter Services based on Selected Pet
+    const selectedPetObj = clients.find(c => c.id === selClient)?.pets.find(p => p.id === selPet);
+    
+    const availableMainServices = services.filter(s => {
+        if(s.category !== 'principal') return false;
+        if(!selectedPetObj) return true; // Show all if no pet selected
+        // Match logic
+        const sizeMatch = s.targetSize === 'Todos' || !s.targetSize || s.targetSize === selectedPetObj.size;
+        const coatMatch = s.targetCoat === 'Todos' || !s.targetCoat || s.targetCoat === selectedPetObj.coat;
+        return sizeMatch && coatMatch;
+    });
+
+    const availableAddServices = services.filter(s => {
+        if(s.category !== 'adicional') return false;
+        if(!selectedPetObj) return true;
+        const sizeMatch = s.targetSize === 'Todos' || !s.targetSize || s.targetSize === selectedPetObj.size;
+        const coatMatch = s.targetCoat === 'Todos' || !s.targetCoat || s.targetCoat === selectedPetObj.coat;
+        return sizeMatch && coatMatch;
+    });
 
     // --- Renderers ---
 
@@ -809,24 +891,25 @@ const ScheduleManager: React.FC<{
                                     <label className="block text-sm font-medium text-gray-700">Pet</label>
                                     <select value={selPet} onChange={e => setSelPet(e.target.value)} className="w-full border p-2 rounded mt-1">
                                         <option value="">Selecione...</option>
-                                        {clients.find(c => c.id === selClient)?.pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                        {clients.find(c => c.id === selClient)?.pets.map(p => <option key={p.id} value={p.id}>{p.name} - {p.size}/{p.coat}</option>)}
                                     </select>
                                 </div>
                             )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Serviço Principal</label>
-                                <select value={selService} onChange={e => setSelService(e.target.value)} className="w-full border p-2 rounded mt-1 bg-blue-50">
+                                <select value={selService} onChange={e => setSelService(e.target.value)} className="w-full border p-2 rounded mt-1 bg-blue-50" disabled={!selPet}>
                                     <option value="">Selecione...</option>
-                                    {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>)}
+                                    {availableMainServices.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>)}
                                 </select>
+                                {selPet && availableMainServices.length === 0 && <p className="text-xs text-red-500 mt-1">Nenhum serviço encontrado para este porte/pelagem.</p>}
                             </div>
 
                             <div className="border-t pt-2">
                                 <p className="text-xs font-bold text-gray-500 mb-2">Serviços Adicionais (Opcional)</p>
-                                <select value={selAdd1} onChange={e => setSelAdd1(e.target.value)} className="w-full border p-2 rounded mb-2 text-sm"><option value="">Adicional 1...</option>{services.map(s => <option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>)}</select>
-                                <select value={selAdd2} onChange={e => setSelAdd2(e.target.value)} className="w-full border p-2 rounded mb-2 text-sm"><option value="">Adicional 2...</option>{services.map(s => <option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>)}</select>
-                                <select value={selAdd3} onChange={e => setSelAdd3(e.target.value)} className="w-full border p-2 rounded text-sm"><option value="">Adicional 3...</option>{services.map(s => <option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>)}</select>
+                                <select value={selAdd1} onChange={e => setSelAdd1(e.target.value)} className="w-full border p-2 rounded mb-2 text-sm" disabled={!selPet}><option value="">Adicional 1...</option>{availableAddServices.map(s => <option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>)}</select>
+                                <select value={selAdd2} onChange={e => setSelAdd2(e.target.value)} className="w-full border p-2 rounded mb-2 text-sm" disabled={!selPet}><option value="">Adicional 2...</option>{availableAddServices.map(s => <option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>)}</select>
+                                <select value={selAdd3} onChange={e => setSelAdd3(e.target.value)} className="w-full border p-2 rounded text-sm" disabled={!selPet}><option value="">Adicional 3...</option>{availableAddServices.map(s => <option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>)}</select>
                             </div>
                         </div>
 
