@@ -275,7 +275,9 @@ const RevenueView: React.FC<{
   const getYearlyChartData = () => {
       const data = [];
       const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      const startMonth = selectedYear === 2024 ? 7 : 0; 
+      
+      // Lógica estrita: Se o ano for 2025, começa em Agosto (índice 7). Caso contrário, começa em Janeiro (0).
+      const startMonth = selectedYear === 2025 ? 7 : 0; 
 
       for (let i = startMonth; i < 12; i++) {
           const monthApps = appointments.filter(a => {
@@ -533,7 +535,7 @@ const RevenueView: React.FC<{
                   <div className="flex justify-between items-center mb-4 bg-white p-3 rounded-xl border border-gray-200">
                       <h2 className="text-lg font-bold text-gray-800">Ano</h2>
                       <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-gray-50 border p-2 rounded-lg text-sm font-bold text-gray-700 outline-none">
-                          {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                          {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                       </select>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -609,7 +611,7 @@ const CostsView: React.FC<{ costs: CostItem[] }> = ({ costs }) => {
             if(!isNaN(d.getTime())) data[d.getMonth()].value += c.amount;
         });
         
-        const startIdx = selectedYear === 2024 ? 7 : 0;
+        const startIdx = selectedYear === 2025 ? 7 : 0;
         return data.slice(startIdx);
     };
 
@@ -631,7 +633,7 @@ const CostsView: React.FC<{ costs: CostItem[] }> = ({ costs }) => {
                      <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-gray-50 border p-2 rounded-lg text-sm font-bold text-gray-700 outline-none" />
                 ) : (
                      <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-gray-50 border p-2 rounded-lg text-sm font-bold text-gray-700 outline-none">
-                        {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                        {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 )}
             </div>
