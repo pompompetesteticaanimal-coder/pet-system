@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, 
-  LineChart, Line, CartesianGrid, Legend 
+  LineChart, Line, CartesianGrid, Legend, ComposedChart, LabelList
 } from 'recharts';
 
 // --- CONSTANTS ---
@@ -219,12 +219,19 @@ const Dashboard: React.FC<{
           current.setDate(startOfWeek.getDate() + i);
           const dateStr = current.toISOString().split('T')[0];
           
-          const dailyApps = appointments.filter(a => a.date.startsWith(dateStr));
+          const dailyApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
           const totalRevenue = dailyApps.reduce((acc, app) => acc + calculateRevenue(app), 0);
 
+          // Formato: 06/12/24 (Sex)
+          const formattedDate = current.toLocaleDateString('pt-BR', {
+              day: '2-digit', month: '2-digit', year: '2-digit'
+          });
+          const label = `${formattedDate} (${weekDays[i]})`;
+
           data.push({
-              name: weekDays[i],
+              name: label,
               faturamento: totalRevenue,
+              petsCount: dailyApps.length,
               date: dateStr
           });
       }
@@ -233,29 +240,31 @@ const Dashboard: React.FC<{
 
   // Gráfico Mensal (Semanas do Mês)
   const getMonthlyChartData = () => {
-      const [year, month] = selectedMonth.split('-').map(Number);
+      const [yearStr, monthStr] = selectedMonth.split('-');
+      const yearShort = yearStr.slice(-2);
       
       // Agrupar por semana (1 a 5)
       const weeksData = [
-          { name: 'Sem 1', faturamento: 0 },
-          { name: 'Sem 2', faturamento: 0 },
-          { name: 'Sem 3', faturamento: 0 },
-          { name: 'Sem 4', faturamento: 0 },
-          { name: 'Sem 5', faturamento: 0 },
+          { name: `S1/${yearShort}`, faturamento: 0, petsCount: 0 },
+          { name: `S2/${yearShort}`, faturamento: 0, petsCount: 0 },
+          { name: `S3/${yearShort}`, faturamento: 0, petsCount: 0 },
+          { name: `S4/${yearShort}`, faturamento: 0, petsCount: 0 },
+          { name: `S5/${yearShort}`, faturamento: 0, petsCount: 0 },
       ];
 
       appointments.forEach(app => {
-          if (!app.date.startsWith(selectedMonth)) return;
+          if (!app.date.startsWith(selectedMonth) || app.status === 'cancelado') return;
           
           const day = parseInt(app.date.split('T')[0].split('-')[2]);
           const weekIndex = Math.ceil(day / 7) - 1; // 1-7 -> 0, 8-14 -> 1, etc.
           
           if (weekIndex >= 0 && weekIndex < 5) {
               weeksData[weekIndex].faturamento += calculateRevenue(app);
+              weeksData[weekIndex].petsCount += 1;
           }
       });
 
-      return weeksData.filter(w => w.faturamento > 0 || w.name === 'Sem 1'); // Mostra pelo menos a sem 1 ou as que tem valor
+      return weeksData.filter(w => w.faturamento > 0 || w.name.startsWith('S1')); 
   };
 
   // --- Filtros ---
@@ -374,17 +383,35 @@ const Dashboard: React.FC<{
               />
           </div>
 
-          {/* GRÁFICO DIÁRIO DA SEMANA */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-64">
-              <h3 className="text-sm font-bold text-gray-500 mb-4">Evolução do Faturamento na Semana</h3>
+          {/* GRÁFICO DIÁRIO DA SEMANA (Linha + Barras) */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-80">
+              <h3 className="text-sm font-bold text-gray-500 mb-4 flex items-center gap-2">
+                  <TrendingUp size={16}/> Evolução do Faturamento & Volume (Semana)
+              </h3>
               <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weeklyChartData}>
+                  <ComposedChart data={weeklyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
-                      <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} />
-                      <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Faturamento']} />
-                      <Line type="monotone" dataKey="faturamento" stroke="#4f46e5" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
-                  </LineChart>
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                      
+                      {/* Eixo Y da Esquerda (Dinheiro) */}
+                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} />
+                      
+                      {/* Eixo Y da Direita (Qtd Pets) */}
+                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+
+                      <Tooltip formatter={(value: number, name: string) => [
+                          name === 'faturamento' ? `R$ ${value.toFixed(2)}` : value, 
+                          name === 'faturamento' ? 'Faturamento' : 'Pets'
+                      ]} />
+                      
+                      {/* Barras (Pets) */}
+                      <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#bfdbfe" radius={[4, 4, 0, 0]} barSize={30} />
+                      
+                      {/* Linha (Faturamento) */}
+                      <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#4f46e5" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
+                          <LabelList dataKey="faturamento" position="top" style={{fontSize: 10, fill: '#4f46e5', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
+                      </Line>
+                  </ComposedChart>
               </ResponsiveContainer>
           </div>
       </section>
@@ -434,17 +461,30 @@ const Dashboard: React.FC<{
               />
           </div>
 
-           {/* GRÁFICO MENSAL (SEMANAS) */}
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-64">
-              <h3 className="text-sm font-bold text-gray-500 mb-4">Performance por Semana</h3>
+           {/* GRÁFICO MENSAL (SEMANAS) - Linha + Barras */}
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-80">
+              <h3 className="text-sm font-bold text-gray-500 mb-4 flex items-center gap-2">
+                  <TrendingUp size={16}/> Performance por Semana (SS/AA)
+              </h3>
               <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlyChartData}>
+                  <ComposedChart data={monthlyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
-                      <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} />
-                      <Tooltip formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Faturamento']} />
-                      <Line type="monotone" dataKey="faturamento" stroke="#9333ea" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}} />
-                  </LineChart>
+                      
+                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} />
+                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+
+                      <Tooltip formatter={(value: number, name: string) => [
+                          name === 'faturamento' ? `R$ ${value.toFixed(2)}` : value, 
+                          name === 'faturamento' ? 'Faturamento' : 'Pets'
+                      ]} />
+                      
+                      <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#e9d5ff" radius={[4, 4, 0, 0]} barSize={40} />
+                      
+                      <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#9333ea" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
+                          <LabelList dataKey="faturamento" position="top" style={{fontSize: 10, fill: '#9333ea', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
+                      </Line>
+                  </ComposedChart>
               </ResponsiveContainer>
           </div>
       </section>
