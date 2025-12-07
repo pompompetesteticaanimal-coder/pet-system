@@ -9,7 +9,7 @@ import {
   Plus, Trash2, Check, X, 
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
   RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
-  ChevronDown, ChevronRight, Search, AlertTriangle
+  ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -481,7 +481,9 @@ const ServiceManager: React.FC<{
     )
 }
 
-// 6. Schedule Manager
+// 6. Schedule Manager (CALENDAR VIEW REWRITE)
+type CalendarViewType = 'month' | 'week' | 'day';
+
 const ScheduleManager: React.FC<{
   appointments: Appointment[];
   clients: Client[];
@@ -493,13 +495,13 @@ const ScheduleManager: React.FC<{
   googleUser: GoogleUser | null;
   isSyncing: boolean;
 }> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete, onSync, googleUser, isSyncing }) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const [expandedDays, setExpandedDays] = useState<string[]>([todayStr]);
+    const [view, setView] = useState<CalendarViewType>('week');
+    const [currentDate, setCurrentDate] = useState(new Date());
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     // Form State
-    const [selDate, setSelDate] = useState(todayStr);
+    const [selDate, setSelDate] = useState('');
     const [selTime, setSelTime] = useState('09:00');
     const [selClient, setSelClient] = useState('');
     const [selPet, setSelPet] = useState('');
@@ -509,6 +511,28 @@ const ScheduleManager: React.FC<{
     const [selAdd3, setSelAdd3] = useState('');
     const [searchClientModal, setSearchClientModal] = useState('');
 
+    // --- Helpers ---
+    const getStartOfWeek = (d: Date) => {
+        const date = new Date(d);
+        const day = date.getDay(); // 0 (Sun) to 6 (Sat)
+        const diff = date.getDate() - day;
+        return new Date(date.setDate(diff));
+    };
+
+    const addDays = (d: Date, days: number) => {
+        const date = new Date(d);
+        date.setDate(date.getDate() + days);
+        return date;
+    };
+
+    const navigate = (direction: 'prev' | 'next') => {
+        const newDate = new Date(currentDate);
+        if (view === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+        else if (view === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+        else newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
+        setCurrentDate(newDate);
+    };
+
     const filteredAppointments = appointments.filter(app => {
         if (!searchTerm) return true;
         const client = clients.find(c => c.id === app.clientId);
@@ -516,19 +540,11 @@ const ScheduleManager: React.FC<{
         return (client?.name.toLowerCase().includes(searchTerm.toLowerCase()) || pet?.name.toLowerCase().includes(searchTerm.toLowerCase()));
     });
 
-    const groupedApps = filteredAppointments.reduce((acc, app) => {
-        const date = app.date.split('T')[0];
-        if (!acc[date]) acc[date] = [];
-        acc[date].push(app);
-        return acc;
-    }, {} as Record<string, Appointment[]>);
-
-    const sortedDates = Object.keys(groupedApps).sort();
-
-    useEffect(() => { if(searchTerm) setExpandedDays(sortedDates); }, [searchTerm, sortedDates.length]);
-
-    const toggleDay = (date: string) => {
-        setExpandedDays(prev => prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date]);
+    const openNewModal = (dateStr?: string, timeStr?: string) => {
+        setSelDate(dateStr || new Date().toISOString().split('T')[0]);
+        setSelTime(timeStr || '09:00');
+        setSelClient(''); setSelPet(''); setSelService(''); setSelAdd1(''); setSelAdd2(''); setSelAdd3(''); setSearchClientModal('');
+        setShowModal(true);
     };
 
     const handleCreate = () => {
@@ -552,110 +568,203 @@ const ScheduleManager: React.FC<{
             }, client, pet, [mainService, ...addServices]);
 
             setShowModal(false);
-            setSearchClientModal('');
-            setSelAdd1(''); setSelAdd2(''); setSelAdd3('');
-            if (!expandedDays.includes(selDate)) setExpandedDays(prev => [...prev, selDate]);
         }
     };
 
     const filteredClientsForModal = clients.filter(c => c.name.toLowerCase().includes(searchClientModal.toLowerCase()) || c.phone.includes(searchClientModal));
 
-    return (
-        <div className="h-full flex flex-col gap-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                     <h2 className="text-2xl font-bold text-gray-800">Agenda</h2>
-                     {googleUser && (
-                        <div className="text-xs text-blue-600 flex items-center gap-1">
-                            <CalendarIcon size={12} /> Google Calendar & Sheets Integrados
-                        </div>
-                     )}
-                </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={onSync} disabled={isSyncing} className="bg-white border border-brand-200 text-brand-600 px-4 py-3 rounded-xl shadow-sm hover:bg-brand-50 transition flex items-center justify-center gap-2 font-bold flex-1 md:flex-none disabled:opacity-50">
-                        <RefreshCw size={18} className={isSyncing ? "animate-spin" : ""} />
-                    </button>
-                    <button onClick={() => { setSelDate(todayStr); setShowModal(true); }} className="bg-brand-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-brand-700 transition flex items-center justify-center gap-2 font-bold flex-1 md:flex-none">
-                        <Plus /> Novo Agendamento
-                    </button>
+    // --- Renderers ---
+
+    const renderHeader = () => (
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+            <div className="flex items-center gap-4">
+                <h2 className="text-2xl font-bold text-gray-800">
+                    {currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </h2>
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button onClick={() => navigate('prev')} className="p-1 hover:bg-white rounded shadow-sm"><ChevronLeft size={20}/></button>
+                    <button onClick={() => setCurrentDate(new Date())} className="px-3 text-sm font-bold">Hoje</button>
+                    <button onClick={() => navigate('next')} className="p-1 hover:bg-white rounded shadow-sm"><ChevronRight size={20}/></button>
                 </div>
             </div>
+            
+            <div className="flex gap-2">
+                 <div className="bg-gray-100 p-1 rounded-lg flex">
+                    {(['month', 'week', 'day'] as const).map(v => (
+                        <button 
+                            key={v}
+                            onClick={() => setView(v)}
+                            className={`px-3 py-1 text-sm rounded-md capitalize ${view === v ? 'bg-white shadow text-brand-600 font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            {v === 'month' ? 'Mês' : v === 'week' ? 'Semana' : 'Dia'}
+                        </button>
+                    ))}
+                 </div>
+                 <button onClick={onSync} disabled={isSyncing} className="bg-white border border-brand-200 text-brand-600 p-2 rounded-lg hover:bg-brand-50 disabled:opacity-50">
+                     <RefreshCw size={20} className={isSyncing ? "animate-spin" : ""} />
+                 </button>
+                 <button onClick={() => openNewModal()} className="bg-brand-600 text-white px-4 py-2 rounded-lg hover:bg-brand-700 flex items-center gap-2 font-bold">
+                    <Plus size={18} /> Novo
+                 </button>
+            </div>
+        </div>
+    );
 
-            <div className="relative">
-                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+    const renderMonth = () => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const startDay = firstDay.getDay(); // 0-6
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        const days = [];
+        // Empty slots
+        for(let i=0; i<startDay; i++) days.push(<div key={`empty-${i}`} className="bg-gray-50 min-h-[100px] border-b border-r"></div>);
+        
+        // Days
+        for(let d=1; d<=daysInMonth; d++) {
+            const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const isToday = new Date().toISOString().split('T')[0] === dateStr;
+            const daysApps = filteredAppointments.filter(a => a.date.startsWith(dateStr));
+
+            days.push(
+                <div key={d} className={`min-h-[100px] border-b border-r p-2 hover:bg-gray-50 transition cursor-pointer ${isToday ? 'bg-blue-50/50' : ''}`} onClick={() => { setCurrentDate(new Date(year, month, d)); setView('day'); }}>
+                    <div className={`text-sm font-bold mb-1 ${isToday ? 'text-brand-600' : 'text-gray-700'}`}>{d}</div>
+                    <div className="space-y-1">
+                        {daysApps.slice(0, 3).map(app => {
+                            const client = clients.find(c => c.id === app.clientId);
+                            const pet = client?.pets.find(p => p.id === app.petId);
+                            const time = app.date.split('T')[1].substring(0, 5);
+                            return (
+                                <div key={app.id} className={`text-[10px] p-1 rounded truncate ${app.status === 'concluido' ? 'bg-green-100 text-green-800' : app.status === 'cancelado' ? 'bg-red-100 text-red-800' : 'bg-brand-100 text-brand-800'}`}>
+                                    {time} {pet?.name}
+                                </div>
+                            )
+                        })}
+                        {daysApps.length > 3 && <div className="text-[10px] text-gray-500 font-bold">+{daysApps.length - 3} mais</div>}
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                <div className="grid grid-cols-7 border-b bg-gray-50">
+                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+                        <div key={d} className="p-2 text-center text-xs font-bold text-gray-500 uppercase">{d}</div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7">
+                    {days}
+                </div>
+            </div>
+        );
+    };
+
+    const renderWeekOrDay = () => {
+        const start = view === 'week' ? getStartOfWeek(currentDate) : currentDate;
+        const daysToShow = view === 'week' ? 7 : 1;
+        const hours = Array.from({length: 12}, (_, i) => i + 8); // 08:00 to 19:00
+
+        const daysHeader = [];
+        for(let i=0; i<daysToShow; i++) {
+            const d = addDays(start, i);
+            const isToday = new Date().toISOString().split('T')[0] === d.toISOString().split('T')[0];
+            daysHeader.push(
+                <div key={i} className={`flex-1 text-center p-2 border-r border-b font-bold ${isToday ? 'bg-brand-50 text-brand-700' : 'bg-white'}`}>
+                    <div className="text-xs uppercase text-gray-500">{d.toLocaleDateString('pt-BR', { weekday: 'short' })}</div>
+                    <div className="text-lg">{d.getDate()}</div>
+                </div>
+            );
+        }
+
+        const grid = hours.map(h => {
+            const timeLabel = `${String(h).padStart(2, '0')}:00`;
+            return (
+                <div key={h} className="flex min-h-[80px]">
+                    <div className="w-16 flex-shrink-0 text-xs text-gray-400 text-right pr-2 pt-2 border-r border-b -mt-2.5 bg-white relative z-10">{timeLabel}</div>
+                    {Array.from({length: daysToShow}).map((_, i) => {
+                        const d = addDays(start, i);
+                        const dateStr = d.toISOString().split('T')[0];
+                        const fullDateStr = `${dateStr}T${String(h).padStart(2, '0')}`;
+                        
+                        // Find appointments for this hour slot
+                        const slotApps = filteredAppointments.filter(app => {
+                            const appDate = app.date.split('T')[0];
+                            const appHour = parseInt(app.date.split('T')[1].split(':')[0]);
+                            return appDate === dateStr && appHour === h;
+                        });
+
+                        return (
+                            <div 
+                                key={`${dateStr}-${h}`} 
+                                className="flex-1 border-r border-b p-1 relative hover:bg-gray-50 transition group"
+                                onClick={() => {
+                                    // Only open if clicking empty space
+                                    if(slotApps.length === 0) openNewModal(dateStr, String(h).padStart(2, '0') + ':00');
+                                }}
+                            >
+                                {/* Invisible "add" button on hover */}
+                                <button className="hidden group-hover:flex absolute inset-0 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-0">
+                                    <Plus className="text-gray-300" />
+                                </button>
+
+                                {slotApps.map(app => {
+                                    const client = clients.find(c => c.id === app.clientId);
+                                    const pet = client?.pets.find(p => p.id === app.petId);
+                                    const service = services.find(s => s.id === app.serviceId);
+                                    
+                                    return (
+                                        <div 
+                                            key={app.id} 
+                                            className={`relative z-10 mb-1 p-2 rounded text-xs border shadow-sm cursor-pointer ${app.status === 'concluido' ? 'bg-green-100 border-green-200 text-green-800' : app.status === 'cancelado' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-brand-100 border-brand-200 text-brand-800'}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const confirmStatus = window.confirm(`Alterar status para: ${app.status === 'agendado' ? 'Concluído' : 'Agendado'}? \n\nOu Cancelar clique em Cancelar no popup.`);
+                                                if(confirmStatus) onUpdateStatus(app.id, app.status === 'agendado' ? 'concluido' : 'agendado');
+                                            }}
+                                        >
+                                            <div className="font-bold">{pet?.name}</div>
+                                            <div className="truncate">{client?.name}</div>
+                                            <div className="text-[10px] opacity-75">{service?.name}</div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        );
+                    })}
+                </div>
+            )
+        });
+
+        return (
+            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden flex flex-col h-full">
+                <div className="flex pl-16 bg-gray-50 border-b">
+                    {daysHeader}
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {grid}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="h-full flex flex-col gap-4">
+            {renderHeader()}
+
+            <div className="relative mb-2">
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
                 <input 
-                    className="w-full pl-10 p-2.5 border rounded-lg focus:ring-2 ring-brand-200 outline-none bg-white shadow-sm"
-                    placeholder="Buscar na agenda..."
+                    className="w-full pl-10 p-2 border rounded-lg focus:ring-2 ring-brand-200 outline-none bg-white shadow-sm"
+                    placeholder="Filtrar agenda por nome..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                 />
             </div>
 
-            <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto p-4 space-y-4">
-                    {sortedDates.length === 0 ? (
-                        <div className="text-center text-gray-400 mt-10">
-                            <CalendarIcon size={48} className="mx-auto mb-2 opacity-20"/>
-                            <p>{searchTerm ? 'Nenhum agendamento encontrado.' : 'Agenda vazia. Sincronize ou adicione um novo.'}</p>
-                        </div>
-                    ) : (
-                        sortedDates.map(date => {
-                            const apps = groupedApps[date].sort((a,b) => a.date.localeCompare(b.date));
-                            const isExpanded = expandedDays.includes(date);
-                            const isToday = date === todayStr;
-
-                            return (
-                                <div key={date} className="border border-gray-100 rounded-lg overflow-hidden">
-                                    <button onClick={() => toggleDay(date)} className={`w-full flex items-center justify-between p-3 ${isToday ? 'bg-brand-50' : 'bg-gray-50'} hover:bg-gray-100 transition`}>
-                                        <div className="flex items-center gap-2">
-                                            {isExpanded ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
-                                            <span className={`font-bold ${isToday ? 'text-brand-700' : 'text-gray-700'}`}>
-                                                {new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
-                                                {isToday && <span className="ml-2 text-xs bg-brand-600 text-white px-2 py-0.5 rounded-full">Hoje</span>}
-                                            </span>
-                                        </div>
-                                        <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded border border-gray-200">{apps.length} agendamentos</span>
-                                    </button>
-
-                                    {isExpanded && (
-                                        <div className="p-3 space-y-3 bg-white">
-                                            {apps.map(app => {
-                                                const client = clients.find(c => c.id === app.clientId);
-                                                const pet = client?.pets.find(p => p.id === app.petId);
-                                                const service = services.find(s => s.id === app.serviceId);
-                                                const time = app.date.split('T')[1];
-                                                const addCount = app.additionalServiceIds?.length || 0;
-
-                                                return (
-                                                    <div key={app.id} className={`p-4 rounded-lg border-l-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${app.status === 'concluido' ? 'border-green-500 bg-green-50/30' : app.status === 'cancelado' ? 'border-red-500 bg-red-50/30' : 'border-brand-500 bg-white'}`}>
-                                                        <div className="flex items-start gap-4">
-                                                            <div className="text-xl font-bold text-gray-400">{time}</div>
-                                                            <div>
-                                                                <h4 className="font-bold text-gray-800">{pet?.name} <span className="text-gray-500 font-normal">({client?.name})</span></h4>
-                                                                <p className="text-sm text-brand-600 font-medium">
-                                                                    {service?.name} {addCount > 0 && <span className="text-xs bg-brand-100 px-1 rounded">+{addCount} extras</span>}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            {app.status === 'agendado' && (
-                                                                <>
-                                                                    <button onClick={() => onUpdateStatus(app.id, 'concluido')} className="p-2 text-green-500 hover:bg-green-50 rounded-full"><Check size={18} /></button>
-                                                                    <button onClick={() => onUpdateStatus(app.id, 'cancelado')} className="p-2 text-red-500 hover:bg-red-50 rounded-full"><X size={18} /></button>
-                                                                </>
-                                                            )}
-                                                            {app.status !== 'agendado' && <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-bold uppercase">{app.status}</span>}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
+            <div className="flex-1 overflow-auto">
+                {view === 'month' ? renderMonth() : renderWeekOrDay()}
             </div>
 
             {/* Modal Novo Agendamento */}
