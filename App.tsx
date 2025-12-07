@@ -483,7 +483,17 @@ const ServiceManager: React.FC<{
                 // Regra: Se estiver vazio, considera "Todos"
                 const sSize = row[2] && row[2].trim() !== '' ? row[2] : 'Todos';
                 const sCoat = row[3] && row[3].trim() !== '' ? row[3] : 'Todos';
-                const sPrice = parseFloat(row[4] || '0');
+                
+                // --- FIX FOR NAN PRICE ---
+                let rawPrice = row[4] || '0';
+                // Remove 'R$', spaces, and treat comma as dot for JS parsing
+                // E.g. "R$ 50,00" -> "50.00"
+                rawPrice = rawPrice.replace(/[^\d,.-]/g, '').trim(); 
+                if (rawPrice.includes(',')) {
+                    rawPrice = rawPrice.replace(/\./g, '').replace(',', '.');
+                }
+                const sPrice = parseFloat(rawPrice);
+                const finalPrice = isNaN(sPrice) ? 0 : sPrice;
 
                 if (sName) {
                     newServices.push({
@@ -492,7 +502,7 @@ const ServiceManager: React.FC<{
                         category: sCat as any,
                         targetSize: sSize,
                         targetCoat: sCoat,
-                        price: sPrice,
+                        price: finalPrice,
                         description: `Importado da planilha`,
                         durationMin: 60
                     });
@@ -585,23 +595,30 @@ const ServiceManager: React.FC<{
                 {Object.entries(groupedServices).map(([cat, svcs]) => (
                     <div key={cat} className="space-y-3">
                         <h3 className="font-bold text-lg text-gray-700 border-b pb-2">{cat}</h3>
-                        {svcs.sort((a,b) => a.name.localeCompare(b.name)).map(s => (
-                            <div key={s.id} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center group">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <h4 className="font-bold text-gray-800">{s.name}</h4>
-                                        <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">{s.targetSize?.substring(0,3)}/{s.targetCoat?.substring(0,3)}</span>
+                        {svcs.sort((a,b) => (a.name || '').localeCompare(b.name || '')).map(s => {
+                            // PROTEÇÃO CONTRA DADOS CORROMPIDOS (Evita Tela Branca)
+                            const displayPrice = (s.price === null || s.price === undefined || isNaN(s.price)) ? 0 : s.price;
+                            const sizeLabel = (s.targetSize || 'Todos').substring(0,3);
+                            const coatLabel = (s.targetCoat || 'Todos').substring(0,3);
+                            
+                            return (
+                                <div key={s.id} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm flex justify-between items-center group">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="font-bold text-gray-800">{s.name}</h4>
+                                            <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">{sizeLabel}/{coatLabel}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500">{s.description}</p>
                                     </div>
-                                    <p className="text-xs text-gray-500">{s.description}</p>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`text-sm font-bold px-2 py-1 rounded-full ${displayPrice === 0 ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
+                                            {displayPrice === 0 ? 'Grátis' : `R$ ${displayPrice.toFixed(2)}`}
+                                        </span>
+                                        <button onClick={() => onDeleteService(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className={`text-sm font-bold px-2 py-1 rounded-full ${s.price === 0 ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
-                                        {s.price === 0 ? 'Grátis' : `R$ ${s.price.toFixed(2)}`}
-                                    </span>
-                                    <button onClick={() => onDeleteService(s.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 p-1 hover:bg-red-50 rounded"><Trash2 size={16} /></button>
-                                </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 ))}
              </div>
