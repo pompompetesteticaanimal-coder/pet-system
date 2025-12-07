@@ -653,17 +653,35 @@ const ScheduleManager: React.FC<{
     const availableMainServices = services.filter(s => {
         if(s.category !== 'principal') return false;
         if(!selectedPetObj) return true; // Show all if no pet selected
-        // Match logic
-        const sizeMatch = s.targetSize === 'Todos' || !s.targetSize || s.targetSize === selectedPetObj.size;
-        const coatMatch = s.targetCoat === 'Todos' || !s.targetCoat || s.targetCoat === selectedPetObj.coat;
+        
+        // Relaxed matching logic (Case Insensitive)
+        const sSize = (s.targetSize || 'Todos').toLowerCase();
+        const sCoat = (s.targetCoat || 'Todos').toLowerCase();
+        const pSize = (selectedPetObj.size || '').toLowerCase();
+        const pCoat = (selectedPetObj.coat || '').toLowerCase();
+
+        // If pet data is incomplete, show options so user isn't blocked
+        if (!pSize && !pCoat) return true;
+
+        const sizeMatch = sSize === 'todos' || !pSize || sSize === pSize;
+        const coatMatch = sCoat === 'todos' || !pCoat || sCoat === pCoat;
+
         return sizeMatch && coatMatch;
     });
 
     const availableAddServices = services.filter(s => {
         if(s.category !== 'adicional') return false;
         if(!selectedPetObj) return true;
-        const sizeMatch = s.targetSize === 'Todos' || !s.targetSize || s.targetSize === selectedPetObj.size;
-        const coatMatch = s.targetCoat === 'Todos' || !s.targetCoat || s.targetCoat === selectedPetObj.coat;
+
+        const sSize = (s.targetSize || 'Todos').toLowerCase();
+        const sCoat = (s.targetCoat || 'Todos').toLowerCase();
+        const pSize = (selectedPetObj.size || '').toLowerCase();
+        const pCoat = (selectedPetObj.coat || '').toLowerCase();
+
+        if (!pSize && !pCoat) return true;
+
+        const sizeMatch = sSize === 'todos' || !pSize || sSize === pSize;
+        const coatMatch = sCoat === 'todos' || !pCoat || sCoat === pCoat;
         return sizeMatch && coatMatch;
     });
 
