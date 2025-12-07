@@ -10,7 +10,8 @@ import {
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
   ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
   ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
-  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle, Loader2
+  Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle, Loader2,
+  Scissors, TrendingUp, AlertOctagon
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -81,6 +82,11 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ o
                     </div>
                 )}
 
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-left text-xs text-blue-800 mb-4">
+                     <p className="font-bold mb-1">Dica:</p>
+                     <p>Certifique-se que o link <span className="font-mono bg-blue-100 px-1 rounded">{currentOrigin}</span> está autorizado no Google Cloud Console.</p>
+                </div>
+
                 <button onClick={onReset} className="mt-8 text-xs text-gray-400 hover:text-red-500 underline">
                     Alterar ID do Cliente
                 </button>
@@ -89,94 +95,165 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ o
     );
 };
 
-// 3. Dashboard Component
+// 3. Dashboard Component (REFORMULADO)
 const Dashboard: React.FC<{ 
   appointments: Appointment[]; 
   services: Service[];
   clients: Client[];
 }> = ({ appointments, services, clients }) => {
-  const today = new Date().toISOString().split('T')[0];
-  const todaysAppointments = appointments.filter(a => a.date.startsWith(today));
-  
-  const totalRevenue = todaysAppointments.reduce((acc, curr) => {
-    // If paid, use paid amount, otherwise use calculated price
-    if (curr.paidAmount) return acc + curr.paidAmount;
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
-    const s = services.find(srv => srv.id === curr.serviceId);
-    let total = s?.price || 0;
-    if (curr.additionalServiceIds) {
-        curr.additionalServiceIds.forEach(addId => {
-            const addS = services.find(srv => srv.id === addId);
-            if (addS) total += addS.price;
-        });
-    }
-    return acc + total;
-  }, 0);
+  // --- Helper Calculadora ---
+  const calculateStats = (apps: Appointment[]) => {
+      let totalPets = 0;
+      let totalTosas = 0;
+      let paidRevenue = 0;
+      let pendingRevenue = 0;
 
-  const pending = todaysAppointments.filter(a => a.status === 'agendado').length;
-  const completed = todaysAppointments.filter(a => a.status === 'concluido').length;
+      apps.forEach(app => {
+          if (app.status === 'cancelado') return; // Ignora cancelados
 
-  const chartData = [
-    { name: 'Agendados', value: pending },
-    { name: 'Concluídos', value: completed },
-    { name: 'Cancelados', value: todaysAppointments.filter(a => a.status === 'cancelado').length }
-  ];
+          totalPets++;
+
+          // Calcular se tem Tosa
+          const mainSvc = services.find(s => s.id === app.serviceId);
+          let hasTosa = mainSvc?.name.toLowerCase().includes('tosa') || false;
+          
+          if (!hasTosa && app.additionalServiceIds) {
+              app.additionalServiceIds.forEach(id => {
+                  const s = services.find(srv => srv.id === id);
+                  if (s && s.name.toLowerCase().includes('tosa')) hasTosa = true;
+              });
+          }
+          if (hasTosa) totalTosas++;
+
+          // Calcular Financeiro
+          if (app.paidAmount && app.paidAmount > 0) {
+              paidRevenue += app.paidAmount;
+          } else {
+              // Calcular pendente (valor esperado)
+              let expected = mainSvc?.price || 0;
+              app.additionalServiceIds?.forEach(id => {
+                  const s = services.find(srv => srv.id === id);
+                  if (s) expected += s.price;
+              });
+              pendingRevenue += expected;
+          }
+      });
+
+      return { totalPets, totalTosas, paidRevenue, pendingRevenue };
+  };
+
+  // --- Filtros ---
+  const dailyApps = appointments.filter(a => a.date.startsWith(selectedDate));
+  const monthlyApps = appointments.filter(a => a.date.startsWith(selectedMonth));
+
+  const dailyStats = calculateStats(dailyApps);
+  const monthlyStats = calculateStats(monthlyApps);
+
+  const StatCard = ({ title, value, icon: Icon, colorClass, subValue }: any) => (
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+          <div>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{title}</p>
+              <h3 className="text-2xl font-bold text-gray-800 mt-1">{value}</h3>
+              {subValue && <p className="text-xs text-gray-400 mt-1">{subValue}</p>}
+          </div>
+          <div className={`p-3 rounded-full ${colorClass}`}>
+              <Icon size={24} />
+          </div>
+      </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Estimativa Faturamento (Hoje)</p>
-              <h3 className="text-2xl font-bold text-gray-800">R$ {totalRevenue.toFixed(2)}</h3>
-            </div>
-            <div className="bg-green-100 p-3 rounded-full text-green-600">
-              <DollarSign size={24} />
-            </div>
+    <div className="space-y-8 animate-fade-in">
+      {/* SEÇÃO DIA */}
+      <section>
+          <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <CalendarIcon className="text-brand-600"/> Visão Diária
+              </h2>
+              <input 
+                  type="date" 
+                  value={selectedDate} 
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="bg-white border p-2 rounded-lg text-sm font-bold text-gray-700 focus:ring-2 ring-brand-200 outline-none"
+              />
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Agendamentos Hoje</p>
-              <h3 className="text-2xl font-bold text-gray-800">{todaysAppointments.length}</h3>
-            </div>
-            <div className="bg-blue-100 p-3 rounded-full text-blue-600">
-              <CalendarIcon size={24} />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard 
+                  title="Total de Pets" 
+                  value={dailyStats.totalPets} 
+                  icon={PawPrint} 
+                  colorClass="bg-blue-100 text-blue-600" 
+              />
+              <StatCard 
+                  title="Total de Tosas" 
+                  value={dailyStats.totalTosas} 
+                  icon={Scissors} 
+                  colorClass="bg-orange-100 text-orange-600" 
+              />
+              <StatCard 
+                  title="Faturamento Pago" 
+                  value={`R$ ${dailyStats.paidRevenue.toFixed(2)}`} 
+                  icon={CheckCircle} 
+                  colorClass="bg-green-100 text-green-600" 
+                  subValue="Já recebido"
+              />
+              <StatCard 
+                  title="Faturamento Pendente" 
+                  value={`R$ ${dailyStats.pendingRevenue.toFixed(2)}`} 
+                  icon={AlertCircle} 
+                  colorClass="bg-yellow-100 text-yellow-600" 
+                  subValue="A receber"
+              />
           </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-             <div>
-              <p className="text-sm text-gray-500">Clientes Ativos</p>
-              <h3 className="text-2xl font-bold text-gray-800">{clients.length}</h3>
-            </div>
-            <div className="bg-purple-100 p-3 rounded-full text-purple-600">
-              <Sparkles size={24} />
-            </div>
-          </div>
-        </div>
-      </div>
+      </section>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-64 flex flex-col">
-        <h3 className="font-semibold text-gray-700 mb-4">Status dos Agendamentos (Hoje)</h3>
-        <div className="flex-1">
-            <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                    <Tooltip cursor={{fill: 'transparent'}} />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                        {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={index === 0 ? '#3b82f6' : index === 1 ? '#22c55e' : '#ef4444'} />
-                        ))}
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
-        </div>
-      </div>
+      <div className="border-t border-gray-200"></div>
+
+      {/* SEÇÃO MÊS */}
+      <section>
+          <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <TrendingUp className="text-purple-600"/> Visão Mensal
+              </h2>
+              <input 
+                  type="month" 
+                  value={selectedMonth} 
+                  onChange={e => setSelectedMonth(e.target.value)}
+                  className="bg-white border p-2 rounded-lg text-sm font-bold text-gray-700 focus:ring-2 ring-purple-200 outline-none"
+              />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard 
+                  title="Total de Pets (Mês)" 
+                  value={monthlyStats.totalPets} 
+                  icon={PawPrint} 
+                  colorClass="bg-purple-100 text-purple-600" 
+              />
+              <StatCard 
+                  title="Total de Tosas (Mês)" 
+                  value={monthlyStats.totalTosas} 
+                  icon={Scissors} 
+                  colorClass="bg-pink-100 text-pink-600" 
+              />
+              <StatCard 
+                  title="Receita Total Paga" 
+                  value={`R$ ${monthlyStats.paidRevenue.toFixed(2)}`} 
+                  icon={Wallet} 
+                  colorClass="bg-emerald-100 text-emerald-600" 
+                  subValue="Caixa confirmado"
+              />
+              <StatCard 
+                  title="Estimativa Pendente" 
+                  value={`R$ ${monthlyStats.pendingRevenue.toFixed(2)}`} 
+                  icon={AlertOctagon} 
+                  colorClass="bg-red-100 text-red-600" 
+                  subValue="Ainda não pago"
+              />
+          </div>
+      </section>
     </div>
   );
 };
