@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -194,7 +195,7 @@ const Dashboard: React.FC<{
   );
 };
 
-// 3.5 Payment Manager (RESPONSIVE CARDS & GROUPS)
+// 3.5 Payment Manager (TABS LAYOUT)
 const PaymentManager: React.FC<{
     appointments: Appointment[];
     clients: Client[];
@@ -209,16 +210,8 @@ const PaymentManager: React.FC<{
     const [method, setMethod] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     
-    // Group visibility state
-    const [groups, setGroups] = useState({
-        toReceive: true,
-        pending: false,
-        paid: false
-    });
-
-    const toggleGroup = (key: 'toReceive' | 'pending' | 'paid') => {
-        setGroups(prev => ({...prev, [key]: !prev[key]}));
-    };
+    // Tab State: 'toReceive' | 'pending' | 'paid'
+    const [activeTab, setActiveTab] = useState<'toReceive' | 'pending' | 'paid'>('toReceive');
 
     // Swipe Refs
     const touchStart = useRef<number | null>(null);
@@ -399,43 +392,6 @@ const PaymentManager: React.FC<{
         )
     };
 
-    const AccordionGroup = ({ 
-        title, 
-        count, 
-        isOpen, 
-        onToggle, 
-        color, 
-        children 
-    }: { 
-        title: string; 
-        count: number; 
-        isOpen: boolean; 
-        onToggle: () => void; 
-        color: string;
-        children: React.ReactNode 
-    }) => (
-        <div className="mb-4">
-            <button 
-                onClick={onToggle}
-                className={`w-full flex items-center justify-between p-4 rounded-lg shadow-sm border transition-all ${isOpen ? 'bg-white rounded-b-none border-b-0' : 'bg-white hover:bg-gray-50'}`}
-                style={{borderLeft: `4px solid ${color}`}}
-            >
-                <div className="flex items-center gap-3">
-                    {isOpen ? <ChevronDown size={20} className="text-gray-400"/> : <ChevronRight size={20} className="text-gray-400"/>}
-                    <span className="font-bold text-gray-800">{title}</span>
-                    {count > 0 && <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-bold">{count}</span>}
-                </div>
-            </button>
-            
-            {isOpen && (
-                <div className="bg-gray-50 p-4 rounded-b-lg border-x border-b border-gray-200">
-                    {children}
-                    {count === 0 && <div className="text-center text-gray-400 text-sm py-2">Nenhum item nesta lista.</div>}
-                </div>
-            )}
-        </div>
-    );
-
     return (
         <div 
             className="space-y-4 h-full flex flex-col"
@@ -469,41 +425,54 @@ const PaymentManager: React.FC<{
                 </div>
             </div>
 
-            {/* Groups */}
-            <div className="flex-1 overflow-y-auto min-h-0">
+            {/* TABS NAVIGATION */}
+            <div className="flex p-1 bg-gray-100 rounded-xl">
+                <button 
+                    onClick={() => setActiveTab('toReceive')} 
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'toReceive' ? 'bg-white shadow text-yellow-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    A Receber <span className="ml-1 text-[10px] bg-yellow-100 px-1.5 py-0.5 rounded-full text-yellow-800">{toReceiveApps.length}</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('pending')} 
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'pending' ? 'bg-white shadow text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    Pendentes <span className="ml-1 text-[10px] bg-red-100 px-1.5 py-0.5 rounded-full text-red-800">{pendingApps.length}</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('paid')} 
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'paid' ? 'bg-white shadow text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    Pagos <span className="ml-1 text-[10px] bg-green-100 px-1.5 py-0.5 rounded-full text-green-800">{paidApps.length}</span>
+                </button>
+            </div>
+
+            {/* CONTENT LIST */}
+            <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50/50 rounded-xl border border-gray-100 p-2">
                 
                 {/* 1. A Receber */}
-                <AccordionGroup 
-                    title="A Receber (Dia Selecionado)" 
-                    count={toReceiveApps.length} 
-                    isOpen={groups.toReceive} 
-                    onToggle={() => toggleGroup('toReceive')}
-                    color="#f59e0b" // Orange/Amber
-                >
-                    {toReceiveApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-yellow-400" />)}
-                </AccordionGroup>
+                {activeTab === 'toReceive' && (
+                    <div className="space-y-2 animate-fade-in">
+                        {toReceiveApps.length === 0 && <div className="text-center text-gray-400 py-10">Nada a receber neste dia.</div>}
+                        {toReceiveApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-yellow-400" />)}
+                    </div>
+                )}
 
-                {/* 2. Pendentes (Atrasados) */}
-                <AccordionGroup 
-                    title="Pendentes (Atrasados)" 
-                    count={pendingApps.length} 
-                    isOpen={groups.pending} 
-                    onToggle={() => toggleGroup('pending')}
-                    color="#ef4444" // Red
-                >
-                    {pendingApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-red-500 bg-red-50/30" />)}
-                </AccordionGroup>
+                {/* 2. Pendentes */}
+                {activeTab === 'pending' && (
+                    <div className="space-y-2 animate-fade-in">
+                         {pendingApps.length === 0 && <div className="text-center text-gray-400 py-10">Nenhuma pendência atrasada.</div>}
+                        {pendingApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-red-500 bg-red-50/30" />)}
+                    </div>
+                )}
 
                 {/* 3. Pagos */}
-                <AccordionGroup 
-                    title="Pagos (Dia Selecionado)" 
-                    count={paidApps.length} 
-                    isOpen={groups.paid} 
-                    onToggle={() => toggleGroup('paid')}
-                    color="#22c55e" // Green
-                >
-                    {paidApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-green-500 opacity-90" />)}
-                </AccordionGroup>
+                {activeTab === 'paid' && (
+                    <div className="space-y-2 animate-fade-in">
+                        {paidApps.length === 0 && <div className="text-center text-gray-400 py-10">Nenhum pagamento registrado hoje.</div>}
+                        {paidApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-green-500 opacity-90" />)}
+                    </div>
+                )}
 
             </div>
         </div>
