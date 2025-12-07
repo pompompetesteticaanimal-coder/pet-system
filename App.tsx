@@ -1548,7 +1548,7 @@ const ScheduleManager: React.FC<{
                                 return (
                                     <div 
                                         key={`${dateStr}-${h}`} 
-                                        className="flex-1 border-r border-gray-100 relative p-1 group hover:bg-gray-50 flex flex-col md:flex-row gap-1 min-w-0"
+                                        className="flex-1 border-r border-gray-100 relative p-1 group hover:bg-gray-50 flex flex-col gap-1 min-w-0"
                                         onClick={() => {
                                             setDate(dateStr);
                                             setTime(`${String(h).padStart(2,'0')}:00`);
