@@ -107,15 +107,38 @@ const Dashboard: React.FC<{
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
-  // --- Helper Calculadora ---
-  const calculateRevenue = (app: Appointment) => {
-      // Retorna o valor TOTAL (Pago + Pendente) deste agendamento para fins de gráfico
+  // --- Helper Calculadora de Status (Pago vs Pendente) para os CARDS ---
+  const calculateRevenueStatus = (app: Appointment) => {
+      if (app.status === 'cancelado') return { paid: 0, pending: 0 };
+      
+      const mainSvc = services.find(s => s.id === app.serviceId);
+      let expectedTotal = mainSvc?.price || 0;
+      app.additionalServiceIds?.forEach(id => {
+          const s = services.find(srv => srv.id === id);
+          if (s) expectedTotal += s.price;
+      });
+
+      // Se tiver valor explícito na planilha (Col R), usa ele como base de cálculo
+      if (app.paidAmount && app.paidAmount > 0) expectedTotal = app.paidAmount;
+
+      const isPaid = app.paymentMethod && app.paymentMethod.trim() !== '';
+
+      if (isPaid) {
+          return { paid: app.paidAmount || expectedTotal, pending: 0 };
+      } else {
+          return { paid: 0, pending: expectedTotal };
+      }
+  };
+
+  // --- Helper Calculadora de Faturamento BRUTO para os GRÁFICOS ---
+  // Ignora se está pago ou não (Col S), considera o valor do serviço ou o valor registrado na Col R
+  const calculateGrossRevenue = (app: Appointment) => {
       if (app.status === 'cancelado') return 0;
       
-      // Se tiver valor pago explícito, usa ele (assumindo que cobre tudo ou é o valor final acordado)
-      if (app.paymentMethod && app.paidAmount) return app.paidAmount;
+      // 1. Se tiver valor na coluna R (PaidAmount), usa ele (preço negociado/real)
+      if (app.paidAmount && app.paidAmount > 0) return app.paidAmount;
 
-      // Se não, calcula o esperado
+      // 2. Se não tiver, calcula valor de tabela
       const mainSvc = services.find(s => s.id === app.serviceId);
       let total = mainSvc?.price || 0;
       app.additionalServiceIds?.forEach(id => {
@@ -154,28 +177,10 @@ const Dashboard: React.FC<{
           }
           if (hasTosa) totalTosas++;
 
-          // 2. Calcular Financeiro
-          // Regra: Se tem paymentMethod (Coluna S), é PAGO. Se não tem, é PENDENTE.
-          const isPaid = app.paymentMethod && app.paymentMethod.trim() !== '';
-
-          if (isPaid) {
-              paidRevenue += (app.paidAmount || 0);
-              if (!app.paidAmount || app.paidAmount === 0) {
-                   let val = mainSvc?.price || 0;
-                   app.additionalServiceIds?.forEach(id => {
-                       const s = services.find(srv => srv.id === id);
-                       if (s) val += s.price;
-                   });
-                   paidRevenue += val;
-              }
-          } else {
-              let expected = mainSvc?.price || 0;
-              app.additionalServiceIds?.forEach(id => {
-                  const s = services.find(srv => srv.id === id);
-                  if (s) expected += s.price;
-              });
-              pendingRevenue += expected;
-          }
+          // 2. Calcular Financeiro (Pago vs Pendente)
+          const { paid, pending } = calculateRevenueStatus(app);
+          paidRevenue += paid;
+          pendingRevenue += pending;
       });
 
       return { totalPets, totalTosas, paidRevenue, pendingRevenue };
@@ -220,7 +225,9 @@ const Dashboard: React.FC<{
           const dateStr = current.toISOString().split('T')[0];
           
           const dailyApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
-          const totalRevenue = dailyApps.reduce((acc, app) => acc + calculateRevenue(app), 0);
+          
+          // USAR GROSS REVENUE (Independente de pagamento)
+          const totalRevenue = dailyApps.reduce((acc, app) => acc + calculateGrossRevenue(app), 0);
 
           // Formato: 06/12/24 (Sex)
           const formattedDate = current.toLocaleDateString('pt-BR', {
@@ -259,7 +266,8 @@ const Dashboard: React.FC<{
           const weekIndex = Math.ceil(day / 7) - 1; // 1-7 -> 0, 8-14 -> 1, etc.
           
           if (weekIndex >= 0 && weekIndex < 5) {
-              weeksData[weekIndex].faturamento += calculateRevenue(app);
+              // USAR GROSS REVENUE
+              weeksData[weekIndex].faturamento += calculateGrossRevenue(app);
               weeksData[weekIndex].petsCount += 1;
           }
       });
@@ -386,7 +394,7 @@ const Dashboard: React.FC<{
           {/* GRÁFICO DIÁRIO DA SEMANA (Linha + Barras) */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-80">
               <h3 className="text-sm font-bold text-gray-500 mb-4 flex items-center gap-2">
-                  <TrendingUp size={16}/> Evolução do Faturamento & Volume (Semana)
+                  <TrendingUp size={16}/> Evolução do Faturamento Bruto (Pago + Pendente)
               </h3>
               <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={weeklyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
@@ -401,7 +409,7 @@ const Dashboard: React.FC<{
 
                       <Tooltip formatter={(value: number, name: string) => [
                           name === 'faturamento' ? `R$ ${value.toFixed(2)}` : value, 
-                          name === 'faturamento' ? 'Faturamento' : 'Pets'
+                          name === 'faturamento' ? 'Faturamento Total' : 'Pets'
                       ]} />
                       
                       {/* Barras (Pets) */}
@@ -464,7 +472,7 @@ const Dashboard: React.FC<{
            {/* GRÁFICO MENSAL (SEMANAS) - Linha + Barras */}
            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-80">
               <h3 className="text-sm font-bold text-gray-500 mb-4 flex items-center gap-2">
-                  <TrendingUp size={16}/> Performance por Semana (SS/AA)
+                  <TrendingUp size={16}/> Performance Total por Semana (SS/AA)
               </h3>
               <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={monthlyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
@@ -476,7 +484,7 @@ const Dashboard: React.FC<{
 
                       <Tooltip formatter={(value: number, name: string) => [
                           name === 'faturamento' ? `R$ ${value.toFixed(2)}` : value, 
-                          name === 'faturamento' ? 'Faturamento' : 'Pets'
+                          name === 'faturamento' ? 'Faturamento Total' : 'Pets'
                       ]} />
                       
                       <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#e9d5ff" radius={[4, 4, 0, 0]} barSize={40} />
