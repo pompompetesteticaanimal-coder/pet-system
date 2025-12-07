@@ -91,6 +91,25 @@ export const googleService = {
     }
   },
 
+  deleteEvent: async (accessToken: string, eventId: string) => {
+    try {
+      const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!response.ok) {
+        console.error('Failed to delete event', await response.text());
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error deleting calendar event', error);
+      return false;
+    }
+  },
+
   getSheetValues: async (accessToken: string, spreadsheetId: string, range: string) => {
     try {
       const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`, {

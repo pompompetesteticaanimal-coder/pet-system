@@ -41,6 +41,7 @@ export interface Appointment {
   status: 'agendado' | 'concluido' | 'cancelado';
   notes?: string;
   durationTotal?: number;
+  googleEventId?: string; // ID para exclusão no Google Calendar
 }
 
 export interface GoogleUser {

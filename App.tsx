@@ -920,7 +920,7 @@ const ScheduleManager: React.FC<{
                         <button 
                             className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 font-medium"
                             onClick={() => {
-                                if(window.confirm("Excluir agendamento?")) {
+                                if(window.confirm("Excluir agendamento? Esta ação não pode ser desfeita.")) {
                                     onDelete(contextMenu.id);
                                 }
                                 setContextMenu(null);
@@ -1325,13 +1325,11 @@ const App: React.FC = () => {
   };
 
   const handleAddAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[]) => {
-    // 1. Save Local
-    const updated = [...appointments, app];
-    setAppointments(updated);
-    db.saveAppointments(updated);
+    
+    let googleEventId = '';
 
     if (accessToken) {
-        // 2. Save to Google Calendar
+        // 1. Save to Google Calendar
         const mainService = appServices[0];
         let totalDuration = mainService.durationMin;
         const description = appServices.map(s => s.name).join(' + ');
@@ -1341,14 +1339,18 @@ const App: React.FC = () => {
              appServices.slice(1).forEach(s => totalDuration += (s.durationMin || 0));
         }
 
-        await googleService.createEvent(accessToken, {
+        const googleResponse = await googleService.createEvent(accessToken, {
             summary: `Banho/Tosa: ${pet.name} - ${client.name}`,
             description: `Serviços: ${description}\nObs: ${pet.notes}`,
             startTime: app.date,
             durationMin: totalDuration
         });
+        
+        if (googleResponse && googleResponse.id) {
+            googleEventId = googleResponse.id;
+        }
 
-        // 3. Save to Google Sheets (Append Row)
+        // 2. Save to Google Sheets (Append Row)
         const dateObj = new Date(app.date);
         const dateStr = dateObj.toLocaleDateString('pt-BR'); // DD/MM/YYYY
         const timeStr = dateObj.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}); // HH:MM
@@ -1375,9 +1377,15 @@ const App: React.FC = () => {
             await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:O', rowData);
             alert('Agendamento salvo no Calendar e na Planilha!');
         } catch (e) {
-            alert('Erro ao salvar na planilha (verifique permissões). Salvo apenas localmente.');
+            alert('Erro ao salvar na planilha (verifique permissões). Salvo apenas localmente e no Calendar.');
         }
     }
+    
+    // 3. Save Local (including Google Event ID)
+    const newApp = { ...app, googleEventId };
+    const updated = [...appointments, newApp];
+    setAppointments(updated);
+    db.saveAppointments(updated);
   }
 
   const handleUpdateAppStatus = (id: string, status: Appointment['status']) => {
@@ -1385,7 +1393,21 @@ const App: React.FC = () => {
     setAppointments(updated);
     db.saveAppointments(updated);
   }
-  const handleDeleteApp = (id: string) => {
+  
+  const handleDeleteApp = async (id: string) => {
+     // Check if it has a Google Event ID to delete
+     const appToDelete = appointments.find(a => a.id === id);
+     
+     if (appToDelete && appToDelete.googleEventId && accessToken) {
+         try {
+             await googleService.deleteEvent(accessToken, appToDelete.googleEventId);
+             // Note: We don't block local delete if API fails, just warn or log
+         } catch (e) {
+             console.error("Failed to delete from Google Calendar", e);
+             alert("Atenção: Não foi possível excluir do Google Calendar (pode já ter sido removido). Removendo apenas do App.");
+         }
+     }
+
      const updated = appointments.filter(a => a.id !== id);
      setAppointments(updated);
      db.saveAppointments(updated);
