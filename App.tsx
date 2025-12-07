@@ -1258,7 +1258,7 @@ const ScheduleManager: React.FC<{
             {/* NEW APPOINTMENT MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:min-h-[600px]">
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-lg text-gray-800">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
                             <button onClick={resetForm}><X size={24} className="text-gray-400 hover:text-gray-600"/></button>
@@ -1272,7 +1272,7 @@ const ScheduleManager: React.FC<{
                                     {selectedClientData && <button onClick={() => { setClientSearch(''); setSelectedClient(''); }} className="absolute right-2 top-2 text-gray-400"><X size={16}/></button>}
                                 </div>
                                 {clientSearch.length > 0 && !selectedClient && filteredClients.length > 0 && (
-                                    <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                                    <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                                         {filteredClients.map(c => (
                                             <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(''); }} className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-50 flex justify-between items-center">
                                                 <div className="text-sm font-bold text-gray-800">{c.name} <span className="text-xs font-normal text-gray-500">({c.pets.map(p=>p.name).join(', ')})</span></div>
