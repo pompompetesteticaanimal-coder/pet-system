@@ -1133,7 +1133,7 @@ const ServiceManager: React.FC<{
     );
 };
 
-// 6. Schedule Manager
+// 6. Schedule Manager (NEW CALENDAR UI)
 const ScheduleManager: React.FC<{
     appointments: Appointment[];
     clients: Client[];
@@ -1143,9 +1143,12 @@ const ScheduleManager: React.FC<{
     onDelete: (id: string) => void;
     googleUser: GoogleUser | null;
 }> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete }) => {
+    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
+    const [currentDate, setCurrentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
     
     // Form State
+    const [clientSearch, setClientSearch] = useState('');
     const [selectedClient, setSelectedClient] = useState<string>('');
     const [selectedPet, setSelectedPet] = useState<string>('');
     const [selectedService, setSelectedService] = useState<string>('');
@@ -1155,7 +1158,7 @@ const ScheduleManager: React.FC<{
     const [notes, setNotes] = useState('');
 
     const resetForm = () => {
-        setSelectedClient(''); setSelectedPet(''); setSelectedService('');
+        setClientSearch(''); setSelectedClient(''); setSelectedPet(''); setSelectedService('');
         setSelectedAddServices([]); setTime(''); setNotes('');
         setIsModalOpen(false);
     };
@@ -1184,85 +1187,209 @@ const ScheduleManager: React.FC<{
         }
     };
 
-    const filteredClients = clients.filter(c => c.pets.length > 0).sort((a,b) => a.name.localeCompare(b.name));
-    const client = clients.find(c => c.id === selectedClient);
-    const pets = client?.pets || [];
+    // Filter Logic for Modal
+    const filteredClients = clientSearch.length > 0 
+        ? clients.filter(c => 
+            c.name.toLowerCase().includes(clientSearch.toLowerCase()) || 
+            c.phone.includes(clientSearch) ||
+            c.pets.some(p => p.name.toLowerCase().includes(clientSearch.toLowerCase()))
+          ).slice(0, 5)
+        : [];
 
-    // Filter Logic
-    const now = new Date();
-    const sortedApps = [...appointments].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const upcoming = sortedApps.filter(a => new Date(a.date) >= now && a.status !== 'cancelado');
-    const past = sortedApps.filter(a => new Date(a.date) < now || a.status === 'cancelado').reverse().slice(0, 20);
+    const selectedClientData = clients.find(c => c.id === selectedClient);
+    const pets = selectedClientData?.pets || [];
+    const selectedPetData = pets.find(p => p.id === selectedPet);
+
+    const getApplicableServices = (category: 'principal' | 'adicional') => {
+        if (!selectedPetData) return [];
+        return services.filter(s => {
+            const matchesCategory = s.category === category;
+            const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase()));
+            const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase()));
+            return matchesCategory && matchesSize && matchesCoat;
+        });
+    };
+
+    // Navigation Logic
+    const navigate = (direction: 'prev' | 'next') => {
+        const newDate = new Date(currentDate);
+        if (viewMode === 'day') newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
+        if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+        if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+        setCurrentDate(newDate);
+    };
+
+    // Calendar Renderers
+    const renderCalendar = () => {
+        const start = new Date(currentDate);
+        start.setHours(0,0,0,0);
+        
+        // --- MONTH VIEW ---
+        if (viewMode === 'month') {
+            const year = start.getFullYear();
+            const month = start.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const startingDay = firstDay.getDay(); // 0 = Sun
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const days = [];
+            // Padding
+            for(let i=0; i<startingDay; i++) days.push(null);
+            // Days
+            for(let i=1; i<=daysInMonth; i++) days.push(new Date(year, month, i));
+
+            return (
+                <div className="grid grid-cols-7 gap-1 h-full auto-rows-fr bg-gray-200 border border-gray-200 rounded-xl overflow-hidden">
+                    {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => (
+                        <div key={d} className="bg-gray-50 text-center py-2 text-xs font-bold text-gray-500 uppercase">{d}</div>
+                    ))}
+                    {days.map((d, idx) => {
+                         if (!d) return <div key={`pad-${idx}`} className="bg-white min-h-[80px]" />;
+                         const dateStr = d.toISOString().split('T')[0];
+                         const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
+                         const isToday = dateStr === new Date().toISOString().split('T')[0];
+
+                         return (
+                             <div key={idx} className={`bg-white p-1 min-h-[80px] flex flex-col border border-gray-50 ${isToday ? 'bg-blue-50' : ''}`}>
+                                 <div className={`text-xs font-bold mb-1 ${isToday ? 'text-brand-600' : 'text-gray-500'}`}>{d.getDate()}</div>
+                                 <div className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
+                                     {dayApps.map(app => {
+                                         const s = services.find(srv => srv.id === app.serviceId);
+                                         const isTosa = s?.name.toLowerCase().includes('tosa');
+                                         const isBath = s?.name.toLowerCase().includes('banho');
+                                         const color = isTosa ? 'bg-orange-100 text-orange-700' : isBath ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700';
+                                         
+                                         return (
+                                             <div key={app.id} className={`${color} text-[9px] px-1 py-0.5 rounded truncate font-medium cursor-pointer`}>
+                                                 {new Date(app.date).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} {s?.name}
+                                             </div>
+                                         )
+                                     })}
+                                 </div>
+                             </div>
+                         )
+                    })}
+                </div>
+            )
+        }
+
+        // --- WEEK/DAY VIEW ---
+        const startOfWeek = new Date(start);
+        startOfWeek.setDate(start.getDate() - start.getDay()); // Sunday
+        
+        const daysToShow = viewMode === 'week' ? 7 : 1;
+        const colStart = viewMode === 'week' ? startOfWeek : start;
+
+        const hours = Array.from({length: 12}, (_, i) => i + 8); // 8:00 to 19:00
+
+        return (
+            <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+                {/* Header */}
+                <div className="flex border-b border-gray-200">
+                    <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50"></div>
+                    {Array.from({length: daysToShow}).map((_, i) => {
+                        const d = new Date(colStart);
+                        d.setDate(d.getDate() + i);
+                        const isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+                        return (
+                            <div key={i} className={`flex-1 text-center py-2 border-r border-gray-200 ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                                <div className={`text-xs font-bold uppercase ${isToday ? 'text-brand-600' : 'text-gray-500'}`}>
+                                    {d.toLocaleDateString('pt-BR', {weekday: 'short'})}
+                                </div>
+                                <div className={`text-sm font-bold ${isToday ? 'text-brand-700' : 'text-gray-700'}`}>
+                                    {d.getDate()}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto">
+                    {hours.map(h => (
+                        <div key={h} className="flex min-h-[60px] border-b border-gray-100 relative">
+                            <div className="w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50 text-[10px] text-gray-400 font-medium p-1 text-right sticky left-0 z-10">
+                                {h}:00
+                            </div>
+                            {Array.from({length: daysToShow}).map((_, i) => {
+                                const d = new Date(colStart);
+                                d.setDate(d.getDate() + i);
+                                const dateStr = d.toISOString().split('T')[0];
+                                
+                                // Find apps in this hour slot
+                                const slotApps = appointments.filter(a => {
+                                    if(a.status === 'cancelado') return false;
+                                    const aDate = new Date(a.date);
+                                    return aDate.getDate() === d.getDate() && aDate.getMonth() === d.getMonth() && aDate.getFullYear() === d.getFullYear() && aDate.getHours() === h;
+                                });
+
+                                return (
+                                    <div 
+                                        key={`${dateStr}-${h}`} 
+                                        className="flex-1 border-r border-gray-100 relative p-0.5 group hover:bg-gray-50"
+                                        onClick={() => {
+                                            setDate(dateStr);
+                                            setTime(`${String(h).padStart(2,'0')}:00`);
+                                            setIsModalOpen(true);
+                                        }}
+                                    >
+                                        {slotApps.map(app => {
+                                            const client = clients.find(c => c.id === app.clientId);
+                                            const pet = client?.pets.find(p => p.id === app.petId);
+                                            const s = services.find(srv => srv.id === app.serviceId);
+                                            const isTosa = s?.name.toLowerCase().includes('tosa');
+                                            const isBath = s?.name.toLowerCase().includes('banho');
+                                            const color = isTosa ? 'bg-orange-100 border-orange-200 text-orange-800' : isBath ? 'bg-blue-100 border-blue-200 text-blue-800' : 'bg-purple-100 border-purple-200 text-purple-800';
+
+                                            return (
+                                                <div 
+                                                    key={app.id}
+                                                    onClick={(e) => { e.stopPropagation(); /* Add Edit Logic Here */ }}
+                                                    className={`absolute top-0.5 left-0.5 right-0.5 bottom-0.5 rounded p-1 border text-[10px] leading-tight overflow-hidden shadow-sm ${color} z-20`}
+                                                >
+                                                    <span className="font-bold">{new Date(app.date).getMinutes() > 0 ? `:${new Date(app.date).getMinutes()} ` : ''}{pet?.name}</span>
+                                                    <div className="truncate opacity-75">{s?.name}</div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )
+    };
 
     return (
-        <div className="space-y-6 animate-fade-in relative h-full flex flex-col">
-            <div className="flex justify-between items-center flex-shrink-0">
-                <h2 className="text-2xl font-bold text-gray-800">Agenda</h2>
+        <div className="space-y-4 animate-fade-in relative h-full flex flex-col">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 flex-shrink-0 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <button onClick={() => setViewMode('day')} className={`px-3 py-1.5 text-xs font-bold rounded ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
+                        <button onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-xs font-bold rounded ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
+                        <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-xs font-bold rounded ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => navigate('prev')} className="p-1.5 hover:bg-gray-100 rounded text-gray-600"><ChevronLeft size={20}/></button>
+                        <span className="text-sm font-bold text-gray-800 min-w-[100px] text-center">
+                            {viewMode === 'day' && currentDate.toLocaleDateString('pt-BR')}
+                            {viewMode === 'month' && currentDate.toLocaleDateString('pt-BR', {month:'long', year:'numeric'})}
+                            {viewMode === 'week' && `Semana ${currentDate.getDate()}`}
+                        </span>
+                        <button onClick={() => navigate('next')} className="p-1.5 hover:bg-gray-100 rounded text-gray-600"><ChevronRight size={20}/></button>
+                    </div>
+                </div>
                 <button 
-                    onClick={() => setIsModalOpen(true)}
-                    className="bg-brand-600 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-brand-700 transition flex items-center gap-2 text-sm"
+                    onClick={() => { resetForm(); setIsModalOpen(true); }}
+                    className="w-full md:w-auto bg-brand-600 text-white px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-brand-700 transition flex items-center justify-center gap-2 text-sm"
                 >
-                    <Plus size={18} /> Novo
+                    <Plus size={18} /> Novo Agendamento
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 space-y-4">
-                {/* Upcoming List */}
-                <div className="space-y-2">
-                    <h3 className="text-sm font-bold text-brand-700 uppercase tracking-wider flex items-center gap-2 sticky top-0 bg-gray-50 py-2 z-10">
-                        <CalendarIcon size={14}/> Próximos
-                    </h3>
-                    {upcoming.length === 0 && <div className="text-gray-400 italic text-sm p-4 bg-white rounded-lg border border-dashed">Nenhum agendamento futuro.</div>}
-                    {upcoming.map(app => {
-                        const c = clients.find(cl => cl.id === app.clientId);
-                        const p = c?.pets.find(pt => pt.id === app.petId);
-                        const s = services.find(srv => srv.id === app.serviceId);
-                        return (
-                            <div key={app.id} className="bg-white p-3 rounded-xl border-l-4 border-brand-500 shadow-sm flex justify-between items-center gap-3">
-                                <div>
-                                    <div className="flex items-center gap-2 text-brand-700 font-bold text-xs mb-0.5">
-                                        <Clock size={12}/>
-                                        {new Date(app.date).toLocaleDateString('pt-BR')} • {new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
-                                    </div>
-                                    <h4 className="font-bold text-gray-800 text-sm">{p?.name} <span className="text-gray-500 font-normal">({c?.name})</span></h4>
-                                    <p className="text-xs text-gray-500 mt-0.5">{s?.name}</p>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <button onClick={() => onUpdateStatus(app.id, 'concluido')} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition" title="Concluir">
-                                        <Check size={18} />
-                                    </button>
-                                    <button onClick={() => { if(confirm('Cancelar este agendamento?')) onDelete(app.id); }} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition" title="Excluir">
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                 {/* Past List */}
-                 <div className="space-y-2 mt-6">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2 sticky top-0 bg-gray-50 py-2 z-10">
-                        <Clock size={14}/> Histórico Recente
-                    </h3>
-                    {past.map(app => {
-                        const c = clients.find(cl => cl.id === app.clientId);
-                        const p = c?.pets.find(pt => pt.id === app.petId);
-                        return (
-                            <div key={app.id} className="bg-gray-100 p-3 rounded-lg border border-gray-200 flex justify-between items-center opacity-75">
-                                <div>
-                                    <div className="text-gray-500 font-medium text-xs">
-                                        {new Date(app.date).toLocaleDateString('pt-BR')}
-                                    </div>
-                                    <h4 className="font-bold text-gray-600 text-sm">{p?.name}</h4>
-                                </div>
-                                <div className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${app.status === 'cancelado' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                                    {app.status}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+            <div className="flex-1 min-h-0">
+                {renderCalendar()}
             </div>
 
             {/* Modal for New Appointment */}
@@ -1276,36 +1403,73 @@ const ScheduleManager: React.FC<{
                         
                         <div className="p-6 overflow-y-auto custom-scrollbar">
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente</label>
-                                    <select 
-                                        value={selectedClient} 
-                                        onChange={e => { setSelectedClient(e.target.value); setSelectedPet(''); }} 
-                                        className="w-full border p-3 rounded-xl bg-white outline-none focus:ring-2 ring-brand-200 text-sm"
-                                    >
-                                        <option value="">Selecione...</option>
-                                        {filteredClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                {/* 1. Client Search */}
+                                <div className="relative">
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Buscar Cliente</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                                        <input 
+                                            type="text"
+                                            value={selectedClientData ? selectedClientData.name : clientSearch}
+                                            onChange={(e) => {
+                                                setClientSearch(e.target.value);
+                                                setSelectedClient(''); // Clear selection on type
+                                                setSelectedPet('');
+                                                setSelectedService('');
+                                            }}
+                                            placeholder="Nome, Telefone ou Pet..."
+                                            className={`w-full pl-10 pr-10 py-3 border rounded-xl outline-none focus:ring-2 ring-brand-200 text-sm ${selectedClientData ? 'bg-green-50 border-green-200 text-green-800 font-bold' : 'bg-white'}`}
+                                        />
+                                        {selectedClientData && (
+                                            <button onClick={() => { setClientSearch(''); setSelectedClient(''); }} className="absolute right-3 top-3 text-gray-400 hover:text-red-500">
+                                                <X size={16}/>
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Dropdown Results */}
+                                    {clientSearch.length > 0 && !selectedClient && filteredClients.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                                            {filteredClients.map(c => (
+                                                <button
+                                                    key={c.id}
+                                                    onClick={() => {
+                                                        setSelectedClient(c.id);
+                                                        setClientSearch('');
+                                                    }}
+                                                    className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 flex justify-between items-center"
+                                                >
+                                                    <div>
+                                                        <div className="font-bold text-sm text-gray-800">{c.name}</div>
+                                                        <div className="text-xs text-gray-500">{c.pets.map(p => p.name).join(', ')}</div>
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">{c.phone}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
+                                {/* 2. Pet Selection */}
                                 {selectedClient && (
                                     <div className="animate-fade-in">
-                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Pet</label>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Selecionar Pet</label>
                                         <div className="grid grid-cols-2 gap-2">
                                             {pets.map(p => (
                                                 <button 
                                                     key={p.id}
-                                                    onClick={() => setSelectedPet(p.id)}
+                                                    onClick={() => { setSelectedPet(p.id); setSelectedService(''); setSelectedAddServices([]); }}
                                                     className={`p-3 rounded-xl border text-left transition ${selectedPet === p.id ? 'bg-brand-50 border-brand-500 ring-1 ring-brand-500' : 'hover:bg-gray-50 border-gray-200'}`}
                                                 >
                                                     <div className="font-bold text-gray-800 text-sm">{p.name}</div>
-                                                    <div className="text-xs text-gray-500">{p.breed}</div>
+                                                    <div className="text-[10px] text-gray-500 uppercase">{p.size} • {p.coat}</div>
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
+                                {/* 3. Service Selection (Filtered) */}
                                 {selectedPet && (
                                     <div className="animate-fade-in space-y-4">
                                         <div>
@@ -1316,7 +1480,7 @@ const ScheduleManager: React.FC<{
                                                 className="w-full border p-3 rounded-xl bg-white outline-none focus:ring-2 ring-brand-200 text-sm"
                                             >
                                                 <option value="">Selecione...</option>
-                                                {services.filter(s => s.category === 'principal').map(s => (
+                                                {getApplicableServices('principal').map(s => (
                                                     <option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>
                                                 ))}
                                             </select>
@@ -1324,21 +1488,33 @@ const ScheduleManager: React.FC<{
 
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Adicionais</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {services.filter(s => s.category === 'adicional').map(s => {
-                                                    const isSelected = selectedAddServices.includes(s.id);
+                                            <div className="flex gap-2">
+                                                <select
+                                                    className="flex-1 border p-3 rounded-xl bg-white outline-none focus:ring-2 ring-brand-200 text-sm"
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        if(val && !selectedAddServices.includes(val) && selectedAddServices.length < 3) {
+                                                            setSelectedAddServices(prev => [...prev, val]);
+                                                        }
+                                                        e.target.value = '';
+                                                    }}
+                                                >
+                                                    <option value="">Adicionar serviço...</option>
+                                                    {getApplicableServices('adicional').map(s => (
+                                                        <option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            {/* Selected Chips */}
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {selectedAddServices.map(id => {
+                                                    const s = services.find(srv => srv.id === id);
                                                     return (
-                                                        <button 
-                                                            key={s.id}
-                                                            onClick={() => {
-                                                                if(isSelected) setSelectedAddServices(prev => prev.filter(id => id !== s.id));
-                                                                else if(selectedAddServices.length < 3) setSelectedAddServices(prev => [...prev, s.id]);
-                                                            }}
-                                                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${isSelected ? 'bg-purple-100 border-purple-500 text-purple-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                                        >
-                                                            {s.name}
-                                                        </button>
-                                                    );
+                                                        <div key={id} className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2">
+                                                            {s?.name}
+                                                            <button onClick={() => setSelectedAddServices(prev => prev.filter(pid => pid !== id))} className="hover:text-purple-900"><X size={12}/></button>
+                                                        </div>
+                                                    )
                                                 })}
                                             </div>
                                         </div>
@@ -1759,7 +1935,7 @@ const App: React.FC = () => {
                   if(day && month && year) {
                      isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`;
                   }
-              } catch(e) {}
+              } catch(e){}
 
               // Find or Create Client
               const cleanPhone = clientPhone.replace(/\D/g, '') || `temp_${idx}`;
