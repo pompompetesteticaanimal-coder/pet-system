@@ -116,14 +116,20 @@ const Dashboard: React.FC<{
 
           totalPets++;
 
-          // 1. Calcular se tem Tosa
+          // 1. Calcular se tem Tosa (Apenas Normal e Tesoura)
+          const isTargetTosa = (name?: string) => {
+              if (!name) return false;
+              const n = name.toLowerCase();
+              return n.includes('tosa normal') || n.includes('tosa tesoura');
+          };
+
           const mainSvc = services.find(s => s.id === app.serviceId);
-          let hasTosa = mainSvc?.name.toLowerCase().includes('tosa') || false;
+          let hasTosa = isTargetTosa(mainSvc?.name);
           
           if (!hasTosa && app.additionalServiceIds) {
               app.additionalServiceIds.forEach(id => {
                   const s = services.find(srv => srv.id === id);
-                  if (s && s.name.toLowerCase().includes('tosa')) hasTosa = true;
+                  if (s && isTargetTosa(s.name)) hasTosa = true;
               });
           }
           if (hasTosa) totalTosas++;
@@ -173,8 +179,10 @@ const Dashboard: React.FC<{
               <h3 className="text-2xl font-bold text-gray-800 mt-1">{value}</h3>
               {subValue && <p className="text-xs text-gray-400 mt-1">{subValue}</p>}
           </div>
-          <div className={`p-3 rounded-full ${colorClass}`}>
-              <Icon size={24} />
+          <div className="p-3 rounded-full bg-opacity-20" style={{backgroundColor: colorClass ? '' : '#f3f4f6'}}>
+               <div className={`p-1 rounded-full ${colorClass}`}>
+                  <Icon size={24} />
+               </div>
           </div>
       </div>
   );
@@ -206,6 +214,7 @@ const Dashboard: React.FC<{
                   value={dailyStats.totalTosas} 
                   icon={Scissors} 
                   colorClass="bg-orange-100 text-orange-600" 
+                  subValue="Normal e Tesoura"
               />
               <StatCard 
                   title="Faturamento Pago" 
@@ -250,7 +259,8 @@ const Dashboard: React.FC<{
                   title="Total de Tosas (Mês)" 
                   value={monthlyStats.totalTosas} 
                   icon={Scissors} 
-                  colorClass="bg-pink-100 text-pink-600" 
+                  colorClass="bg-pink-100 text-pink-600"
+                  subValue="Normal e Tesoura"
               />
               <StatCard 
                   title="Receita Total Paga" 
