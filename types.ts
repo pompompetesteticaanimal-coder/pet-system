@@ -42,6 +42,8 @@ export interface Appointment {
   notes?: string;
   durationTotal?: number;
   googleEventId?: string; // ID para exclusão no Google Calendar
+  paidAmount?: number; // Valor Pago
+  paymentMethod?: 'Credito' | 'Debito' | 'Pix' | 'Dinheiro' | ''; // Forma de Pagamento
 }
 
 export interface GoogleUser {
@@ -51,4 +53,4 @@ export interface GoogleUser {
   picture: string;
 }
 
-export type ViewState = 'dashboard' | 'clients' | 'schedule' | 'services';
+export type ViewState = 'dashboard' | 'payments' | 'clients' | 'schedule' | 'services';

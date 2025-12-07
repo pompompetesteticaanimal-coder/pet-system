@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewState, GoogleUser } from '../types';
-import { LayoutDashboard, Users, Calendar, Scissors, Menu, X, LogIn, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Scissors, Menu, X, LogIn, LogOut, Wallet } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -53,6 +53,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         </div>
         <nav className="flex-1 p-4 space-y-2">
           <NavItem view="dashboard" current={currentView} icon={LayoutDashboard} label="Dashboard" onClick={setView} />
+          <NavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={setView} />
           <NavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={setView} />
           <NavItem view="clients" current={currentView} icon={Users} label="Clientes & Pets" onClick={setView} />
           <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={setView} />
@@ -97,6 +98,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         {isMobileMenuOpen && (
             <div className="md:hidden absolute top-16 left-0 right-0 bg-white shadow-lg z-30 border-b border-gray-200 p-4 space-y-2">
                 <NavItem view="dashboard" current={currentView} icon={LayoutDashboard} label="Dashboard" onClick={(v) => { setView(v); setIsMobileMenuOpen(false); }} />
+                <NavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={(v) => { setView(v); setIsMobileMenuOpen(false); }} />
                 <NavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={(v) => { setView(v); setIsMobileMenuOpen(false); }} />
                 <NavItem view="clients" current={currentView} icon={Users} label="Clientes" onClick={(v) => { setView(v); setIsMobileMenuOpen(false); }} />
                 <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={(v) => { setView(v); setIsMobileMenuOpen(false); }} />

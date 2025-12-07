@@ -10,7 +10,7 @@ import {
   Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
   RefreshCw, ExternalLink, Settings, PawPrint, LogIn, ShieldAlert, Lock, Copy,
   ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
-  Edit2, MoreVertical
+  Edit2, MoreVertical, Wallet
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -113,10 +113,11 @@ const Dashboard: React.FC<{
   const todaysAppointments = appointments.filter(a => a.date.startsWith(today));
   
   const totalRevenue = todaysAppointments.reduce((acc, curr) => {
-    // Main Service
+    // If paid, use paid amount, otherwise use calculated price
+    if (curr.paidAmount) return acc + curr.paidAmount;
+
     const s = services.find(srv => srv.id === curr.serviceId);
     let total = s?.price || 0;
-    // Additional Services
     if (curr.additionalServiceIds) {
         curr.additionalServiceIds.forEach(addId => {
             const addS = services.find(srv => srv.id === addId);
@@ -141,7 +142,7 @@ const Dashboard: React.FC<{
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Faturamento Hoje</p>
+              <p className="text-sm text-gray-500">Estimativa Faturamento (Hoje)</p>
               <h3 className="text-2xl font-bold text-gray-800">R$ {totalRevenue.toFixed(2)}</h3>
             </div>
             <div className="bg-green-100 p-3 rounded-full text-green-600">
@@ -192,6 +193,185 @@ const Dashboard: React.FC<{
       </div>
     </div>
   );
+};
+
+// 3.5 Payment Manager
+const PaymentManager: React.FC<{
+    appointments: Appointment[];
+    clients: Client[];
+    services: Service[];
+    onUpdateAppointment: (app: Appointment) => void;
+    accessToken: string | null;
+    sheetId: string;
+}> = ({ appointments, clients, services, onUpdateAppointment, accessToken, sheetId }) => {
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [amount, setAmount] = useState('');
+    const [method, setMethod] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const filteredApps = appointments.filter(a => a.date.startsWith(selectedDate));
+
+    const calculateExpected = (app: Appointment) => {
+        const main = services.find(s => s.id === app.serviceId);
+        let total = main?.price || 0;
+        app.additionalServiceIds?.forEach(id => {
+            const s = services.find(srv => srv.id === id);
+            if(s) total += s.price;
+        });
+        return total;
+    };
+
+    const handleStartEdit = (app: Appointment) => {
+        setEditingId(app.id);
+        const expected = calculateExpected(app);
+        setAmount(app.paidAmount ? app.paidAmount.toString() : expected.toString());
+        setMethod(app.paymentMethod || 'Credito');
+    };
+
+    const handleSave = async (app: Appointment) => {
+        setIsSaving(true);
+        const finalAmount = parseFloat(amount);
+        const updatedApp = { ...app, paidAmount: finalAmount, paymentMethod: method as any };
+
+        // 1. Update Sheet if applicable
+        if (app.id.startsWith('sheet_') && accessToken && sheetId) {
+            try {
+                const parts = app.id.split('_');
+                const index = parseInt(parts[1]);
+                const rowNumber = index + 2;
+                
+                // Columns R (17) and S (18)
+                const range = `Agendamento!R${rowNumber}:S${rowNumber}`;
+                const values = [finalAmount.toString().replace('.', ','), method];
+                
+                await googleService.updateSheetValues(accessToken, sheetId, range, values);
+            } catch (e) {
+                console.error("Failed to update sheet payments", e);
+                alert("Erro ao salvar na planilha. Salvo apenas localmente.");
+            }
+        }
+
+        // 2. Update Local
+        onUpdateAppointment(updatedApp);
+        setEditingId(null);
+        setIsSaving(false);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-800">Financeiro & Pagamentos</h2>
+                <input 
+                    type="date" 
+                    value={selectedDate} 
+                    onChange={e => setSelectedDate(e.target.value)}
+                    className="border p-2 rounded-lg"
+                />
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora/Cliente</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serviços</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor Total</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status Pagamento</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                        {filteredApps.map(app => {
+                            const client = clients.find(c => c.id === app.clientId);
+                            const pet = client?.pets.find(p => p.id === app.petId);
+                            const mainSvc = services.find(s => s.id === app.serviceId);
+                            const expected = calculateExpected(app);
+                            const isPaid = !!app.paidAmount;
+
+                            if (editingId === app.id) {
+                                return (
+                                    <tr key={app.id} className="bg-brand-50">
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold">{pet?.name}</div>
+                                            <div className="text-xs text-gray-500">{client?.name}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs text-gray-500">Editando...</td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center">
+                                                <span className="text-gray-500 mr-1">R$</span>
+                                                <input 
+                                                    type="number" 
+                                                    value={amount} 
+                                                    onChange={e => setAmount(e.target.value)} 
+                                                    className="w-24 border p-1 rounded"
+                                                />
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <select 
+                                                value={method} 
+                                                onChange={e => setMethod(e.target.value)}
+                                                className="w-32 border p-1 rounded bg-white"
+                                            >
+                                                <option value="Credito">Crédito</option>
+                                                <option value="Debito">Débito</option>
+                                                <option value="Pix">Pix</option>
+                                                <option value="Dinheiro">Dinheiro</option>
+                                            </select>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleSave(app)} disabled={isSaving} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">
+                                                    {isSaving ? '...' : 'Salvar'}
+                                                </button>
+                                                <button onClick={() => setEditingId(null)} className="text-gray-500 hover:text-gray-700 text-xs">Cancelar</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            }
+
+                            return (
+                                <tr key={app.id}>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm text-gray-900 font-bold">{new Date(app.date).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</div>
+                                        <div className="text-xs text-gray-500">{client?.name} - {pet?.name}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs text-gray-600">
+                                        <div>{mainSvc?.name}</div>
+                                        {app.additionalServiceIds?.map(id => services.find(s=>s.id===id)?.name).join(', ')}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-bold text-gray-800">
+                                        R$ {expected.toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {isPaid ? (
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                Pago: R$ {app.paidAmount?.toFixed(2)} ({app.paymentMethod})
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                Pendente
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <button onClick={() => handleStartEdit(app)} className="text-brand-600 hover:text-brand-800 font-medium text-xs flex items-center gap-1">
+                                            <DollarSign size={14}/> Receber
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {filteredApps.length === 0 && (
+                             <tr><td colSpan={5} className="px-6 py-10 text-center text-gray-500">Nenhum agendamento para esta data.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    )
 };
 
 // 4. Client Manager
@@ -1490,12 +1670,19 @@ const App: React.FC = () => {
       db.saveServices(newServices);
   }
 
+  const handleUpdateApp = (updatedApp: Appointment) => {
+    const updated = appointments.map(a => a.id === updatedApp.id ? updatedApp : a);
+    setAppointments(updated);
+    db.saveAppointments(updated);
+  };
+
   // Sync APPOINTMENTS (Read from Sheet)
   const handleSyncAppointments = async () => {
       if (!accessToken || !SHEET_ID) return;
       setIsSyncing(true);
       try {
-          const rows = await googleService.getSheetValues(accessToken, SHEET_ID, 'Agendamento!A:O');
+          // A:O was original, now need to read up to S (Paid Amount = R/17, Method = S/18)
+          const rows = await googleService.getSheetValues(accessToken, SHEET_ID, 'Agendamento!A:S');
           if(!rows || rows.length < 2) {
               alert('Aba Agendamento vazia ou não encontrada.');
               setIsSyncing(false);
@@ -1510,6 +1697,9 @@ const App: React.FC = () => {
               // COLUMNS:
               // 0: Pet, 1: Client, 2: Phone, 3: Address, 4: Breed, 5: Size, 6: Coat
               // 7: Service, 8: Add1, 9: Add2, 10: Add3, 11: Date, 12: Time, 13: Obs, 14: Duration
+              // 15, 16 ...
+              // 17 (R): Paid Amount
+              // 18 (S): Payment Method
 
               const petName = row[0];
               const clientName = row[1];
@@ -1519,6 +1709,9 @@ const App: React.FC = () => {
               const datePart = row[11]; // DD/MM/YYYY
               const timePart = row[12]; // HH:MM
               const serviceName = row[7];
+              
+              const paidAmountStr = row[17];
+              const paymentMethod = row[18];
               
               if(!clientName || !datePart) return;
 
@@ -1577,6 +1770,13 @@ const App: React.FC = () => {
                       if (foundSvc) addServiceIds.push(foundSvc.id);
                   }
               });
+              
+              // Parse Payment
+              let paidAmount = 0;
+              if (paidAmountStr) {
+                  paidAmount = parseFloat(paidAmountStr.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.'));
+                  if(isNaN(paidAmount)) paidAmount = 0;
+              }
 
               if(client && pet) {
                   loadedApps.push({
@@ -1588,7 +1788,9 @@ const App: React.FC = () => {
                       date: isoDate,
                       status: 'agendado', 
                       notes: row[13],
-                      durationTotal: parseInt(row[14] || '0')
+                      durationTotal: parseInt(row[14] || '0'),
+                      paidAmount: paidAmount > 0 ? paidAmount : undefined,
+                      paymentMethod: paymentMethod as any
                   });
               }
           });
@@ -1711,6 +1913,7 @@ const App: React.FC = () => {
     <HashRouter>
       <Layout currentView={currentView} setView={setCurrentView} googleUser={googleUser} onLogin={() => googleService.login()} onLogout={handleLogout}>
         {currentView === 'dashboard' && <Dashboard appointments={appointments} services={services} clients={clients} />}
+        {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} accessToken={accessToken} sheetId={SHEET_ID} />}
         {currentView === 'clients' && <ClientManager clients={clients} onSyncClients={handleSyncClients} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
         {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={handleSyncServices} accessToken={accessToken} sheetId={SHEET_ID} />}
         {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onUpdateStatus={handleUpdateAppStatus} onDelete={handleDeleteApp} onSync={handleSyncAppointments} googleUser={googleUser} isSyncing={isSyncing} />}
