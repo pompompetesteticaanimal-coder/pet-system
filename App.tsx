@@ -668,7 +668,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
             
             {isModalOpen && (
                 <div className="fixed inset-0 bg-gray-900/40 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:min-h-[500px]">
+                    <div className="bg-white rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:min-h-[500px]">
                         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <h3 className="font-bold text-xl text-gray-800 tracking-tight">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
                             <button onClick={resetForm} className="bg-white p-2 rounded-full shadow-sm hover:bg-gray-100"><X size={20} className="text-gray-500"/></button>
