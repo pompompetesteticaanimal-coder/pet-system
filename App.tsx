@@ -699,7 +699,15 @@ const PaymentManager: React.FC<{
     accessToken: string | null;
     sheetId: string;
 }> = ({ appointments, clients, services, onUpdateAppointment, accessToken, sheetId }) => {
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    // FIX: Using Local Time for date initialization to avoid timezone issues
+    const getLocalISODate = (d: Date = new Date()) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const [selectedDate, setSelectedDate] = useState(getLocalISODate());
     const [editingId, setEditingId] = useState<string | null>(null);
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState('');
@@ -714,16 +722,23 @@ const PaymentManager: React.FC<{
     const touchEnd = useRef<number | null>(null);
     const minSwipeDistance = 50;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalISODate();
+    
+    // Helper to get local date string from appointment date
+    const getAppLocalDateStr = (dateStr: string) => {
+        const d = new Date(dateStr);
+        return getLocalISODate(d);
+    };
     
     const pendingApps = appointments.filter(a => {
-        const appDate = a.date.split('T')[0];
+        const appDate = getAppLocalDateStr(a.date);
         const isPast = appDate < todayStr;
         const isUnpaid = !a.paymentMethod || a.paymentMethod.trim() === ''; 
         return isPast && isUnpaid;
     }).sort((a,b) => b.date.localeCompare(a.date));
 
-    const dailyApps = appointments.filter(a => a.date.startsWith(selectedDate));
+    // FIX: Filtering using local date comparison
+    const dailyApps = appointments.filter(a => getAppLocalDateStr(a.date) === selectedDate);
     const toReceiveApps = dailyApps.filter(a => !a.paymentMethod || a.paymentMethod.trim() === '');
     const paidApps = dailyApps.filter(a => a.paymentMethod && a.paymentMethod.trim() !== '');
 
@@ -731,11 +746,10 @@ const PaymentManager: React.FC<{
         const [year, month, day] = selectedDate.split('-').map(Number);
         const date = new Date(year, month - 1, day);
         date.setDate(date.getDate() + days);
-        const newDate = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
-        setSelectedDate(newDate);
+        setSelectedDate(getLocalISODate(date));
     };
 
-    const goToToday = () => setSelectedDate(new Date().toISOString().split('T')[0]);
+    const goToToday = () => setSelectedDate(getLocalISODate());
 
     const onTouchStart = (e: React.TouchEvent) => { touchEnd.current = null; touchStart.current = e.targetTouches[0].clientX; };
     const onTouchMove = (e: React.TouchEvent) => { touchEnd.current = e.targetTouches[0].clientX; };
@@ -883,7 +897,7 @@ const PaymentManager: React.FC<{
                     <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"><ChevronLeft size={18} /></button>
                     <button onClick={goToToday} className="flex-1 px-2 py-1 bg-brand-50 text-brand-700 font-bold rounded-lg text-xs hover:bg-brand-100">Hoje</button>
                     <button onClick={() => navigateDate(1)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"><ChevronRight size={18} /></button>
-                    <div className="text-xs font-bold text-gray-700 px-2">{new Date(selectedDate).toLocaleDateString('pt-BR')}</div>
+                    <div className="text-xs font-bold text-gray-700 px-2">{new Date(selectedDate).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</div>
                 </div>
             </div>
 
