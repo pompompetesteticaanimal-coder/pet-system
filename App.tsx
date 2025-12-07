@@ -186,12 +186,17 @@ const Dashboard: React.FC<{
 
           const formattedDate = current.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
           const label = `${formattedDate} (${weekDaysLabels[dayIndex]})`;
+          
+          // Calculate growth compared to previous day (simple approximation)
+          // Ideally would look at same day previous week, but strictly for the table data row.
+          // Using 0 for now as daily variance is high.
 
           data.push({
               name: label,
               faturamento: totalRevenue,
               petsCount: dailyApps.length,
-              date: dateStr
+              date: dateStr,
+              growth: 0 
           });
       });
       return data;
@@ -293,7 +298,8 @@ const Dashboard: React.FC<{
               faturamento: stats.grossRevenue,
               petsCount: stats.totalPets,
               revGrowth: i > startMonth ? revGrowth : 0,
-              petsGrowth: i > startMonth ? petsGrowth : 0
+              petsGrowth: i > startMonth ? petsGrowth : 0,
+              hasPrev: i > startMonth
           });
       }
       return data;
@@ -307,8 +313,15 @@ const Dashboard: React.FC<{
       yearApps.forEach(app => {
           const client = clients.find(c => c.id === app.clientId);
           const pet = client?.pets.find(p => p.id === app.petId);
+          // O objeto 'pet' aqui já foi atualizado pelo handleSyncAppointments com os dados da coluna F da planilha
           if (pet?.size && counts[pet.size] !== undefined) {
               counts[pet.size]++;
+          } else if (pet?.size) {
+             // Caso venha algo fora do padrão, tenta normalizar
+             const s = pet.size;
+             if(s.includes('Peq')) counts['Pequeno']++;
+             if(s.includes('Méd') || s.includes('Med')) counts['Médio']++;
+             if(s.includes('Gra')) counts['Grande']++;
           }
       });
 
@@ -391,7 +404,7 @@ const Dashboard: React.FC<{
   );
 
   const GrowthBadge = ({ val, hasPrev = true }: {val: number, hasPrev?: boolean}) => {
-      if(!hasPrev) return <span className="text-[10px] text-gray-400">Sem dados ant.</span>;
+      if(!hasPrev) return <span className="text-[10px] text-gray-300">-</span>;
       const isPos = val >= 0;
       return (
           <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isPos ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -400,6 +413,35 @@ const Dashboard: React.FC<{
           </span>
       )
   };
+
+  const ChartDataTable = ({ data, showGrowth = false }: { data: any[], showGrowth?: boolean }) => (
+    <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-xs">
+            <thead className="bg-gray-50">
+                <tr>
+                    <th className="px-3 py-2 text-left font-bold text-gray-500 uppercase">Período</th>
+                    <th className="px-3 py-2 text-right font-bold text-gray-500 uppercase">Faturamento</th>
+                    <th className="px-3 py-2 text-right font-bold text-gray-500 uppercase">Pets</th>
+                    {showGrowth && <th className="px-3 py-2 text-right font-bold text-gray-500 uppercase">Var. %</th>}
+                </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+                {data.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium text-gray-700 whitespace-nowrap">{row.name}</td>
+                        <td className="px-3 py-2 text-right text-gray-700">R$ {row.faturamento.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right text-gray-700">{row.petsCount}</td>
+                        {showGrowth && (
+                            <td className="px-3 py-2 text-right">
+                                <GrowthBadge val={row.revGrowth || row.growth || 0} hasPrev={row.hasPrev} />
+                            </td>
+                        )}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    </div>
+  );
 
   const TabButton = ({ id, label, icon: Icon }: any) => (
       <button 
@@ -458,25 +500,31 @@ const Dashboard: React.FC<{
               <StatCard title="Pendente" value={`R$ ${weeklyStats.pendingRevenue.toFixed(2)}`} icon={AlertOctagon} colorClass="bg-rose-100 text-rose-600" />
           </div>
 
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-96">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-sm font-bold text-gray-500 mb-6 flex items-center gap-2">
                   <TrendingUp size={16}/> Faturamento Diário (Terça - Sábado)
               </h3>
-              <ResponsiveContainer width="100%" height="85%">
-                  <ComposedChart data={weeklyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} domain={['auto', 'auto']} />
-                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                      <Tooltip formatter={(value: number, name: string) => [name === 'faturamento' ? `R$ ${value.toFixed(2)}` : value, name === 'faturamento' ? 'Faturamento' : 'Pets']} />
-                      <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#bfdbfe" radius={[4, 4, 0, 0]} barSize={40}>
-                           <LabelList dataKey="petsCount" position="top" style={{fontSize: 10, fill: '#60a5fa'}} />
-                      </Bar>
-                      <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#4f46e5" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
-                          <LabelList dataKey="faturamento" position="top" offset={10} style={{fontSize: 10, fill: '#4f46e5', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
-                      </Line>
-                  </ComposedChart>
-              </ResponsiveContainer>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={weeklyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                        <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} domain={['auto', 'auto']} />
+                        <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                        <Tooltip formatter={(value: number, name: string) => [name === 'faturamento' ? `R$ ${value.toFixed(2)}` : value, name === 'faturamento' ? 'Faturamento' : 'Pets']} />
+                        <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#c7d2fe" radius={[4, 4, 0, 0]} barSize={40}>
+                            <LabelList dataKey="petsCount" position="top" style={{fontSize: 10, fill: '#6366f1'}} />
+                        </Bar>
+                        {/* Weekly Color: Indigo */}
+                        <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#4f46e5" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
+                            <LabelList dataKey="faturamento" position="top" offset={10} style={{fontSize: 10, fill: '#4f46e5', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
+                        </Line>
+                    </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Data Table */}
+              <ChartDataTable data={weeklyChartData} />
           </div>
       </section>
       )}
@@ -500,50 +548,44 @@ const Dashboard: React.FC<{
               <StatCard title="A Receber" value={`R$ ${monthlyStats.pendingRevenue.toFixed(2)}`} icon={AlertOctagon} colorClass="bg-red-100 text-red-600" />
           </div>
 
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-96">
+           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
               <h3 className="text-sm font-bold text-gray-500 mb-6 flex items-center gap-2">
                   <TrendingUp size={16}/> Comparativo Semanal (Semana Ano)
               </h3>
-              <ResponsiveContainer width="100%" height="85%">
-                  <ComposedChart data={monthlyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
-                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} domain={['auto', 'auto']} />
-                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                      <Tooltip 
-                        content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                    <div className="bg-white p-2 border shadow-sm rounded text-xs">
-                                        <p className="font-bold">{data.fullName}</p>
-                                        <p>Faturamento: R$ {data.faturamento.toFixed(2)}</p>
-                                        <div className="mt-1 pt-1 border-t">
-                                            <span className="text-gray-500">vs Mês Ant: </span>
-                                            <GrowthBadge val={data.growth} hasPrev={data.hasPrev} />
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={monthlyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
+                        <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val}`} domain={['auto', 'auto']} />
+                        <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                        <Tooltip 
+                            content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                        <div className="bg-white p-2 border shadow-sm rounded text-xs">
+                                            <p className="font-bold">{data.fullName}</p>
+                                            <p>Faturamento: R$ {data.faturamento.toFixed(2)}</p>
                                         </div>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        }}
-                      />
-                      <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#e9d5ff" radius={[4, 4, 0, 0]} barSize={40}>
-                         <LabelList dataKey="petsCount" position="top" style={{fontSize: 10, fill: '#a855f7'}} />
-                      </Bar>
-                      <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#9333ea" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
-                          {/* Label apenas com o valor monetário */}
-                          <LabelList dataKey="faturamento" position="top" offset={10} style={{fontSize: 10, fill: '#9333ea', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
-                          
-                          {/* Badge de comparação posicionado abaixo (via custom label complexo ou simplificado na tooltip/footer) */}
-                          {/* Devido a limitações de SVG, manteremos a badge na Tooltip ou Footer do card para evitar sobreposição excessiva no gráfico */}
-                      </Line>
-                  </ComposedChart>
-              </ResponsiveContainer>
-              <div className="mt-2 flex justify-center gap-4 text-xs text-gray-500">
-                  <div className="flex items-center gap-1"><div className="w-3 h-3 bg-purple-500 rounded-full"></div> Faturamento</div>
-                  <div className="flex items-center gap-1"><div className="w-3 h-3 bg-purple-200 rounded-full"></div> Qtd. Pets</div>
+                                    );
+                                }
+                                return null;
+                            }}
+                        />
+                        <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#e9d5ff" radius={[4, 4, 0, 0]} barSize={40}>
+                            <LabelList dataKey="petsCount" position="top" style={{fontSize: 10, fill: '#a855f7'}} />
+                        </Bar>
+                        {/* Monthly Color: Purple */}
+                        <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#9333ea" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
+                            <LabelList dataKey="faturamento" position="top" offset={10} style={{fontSize: 10, fill: '#9333ea', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
+                        </Line>
+                    </ComposedChart>
+                </ResponsiveContainer>
               </div>
+
+              {/* Data Table with Growth */}
+              <ChartDataTable data={monthlyChartData} showGrowth />
           </div>
       </section>
       )}
@@ -556,7 +598,7 @@ const Dashboard: React.FC<{
               <select 
                   value={selectedYear} 
                   onChange={e => setSelectedYear(parseInt(e.target.value))}
-                  className="bg-gray-50 border p-2 rounded-lg text-sm font-bold text-gray-700 focus:ring-2 ring-sky-200 outline-none"
+                  className="bg-gray-50 border p-2 rounded-lg text-sm font-bold text-gray-700 focus:ring-2 ring-emerald-200 outline-none"
               >
                   {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
@@ -569,43 +611,48 @@ const Dashboard: React.FC<{
               <StatCard title="Pendência Total" value={`R$ ${yearlyStats.pendingRevenue.toFixed(2)}`} icon={AlertCircle} colorClass="bg-red-100 text-red-600" />
           </div>
 
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-96 mb-6">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
               <h3 className="text-sm font-bold text-gray-500 mb-6 flex items-center gap-2">
                   <TrendingUp size={16}/> Evolução Mensal (Início: Ago/24)
               </h3>
-              <ResponsiveContainer width="100%" height="85%">
-                  <ComposedChart data={yearlyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
-                      <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val/1000}k`} domain={['auto', 'auto']} />
-                      <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
-                      
-                      <Tooltip 
-                        content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                    <div className="bg-white p-2 border shadow-sm rounded text-xs w-40">
-                                        <p className="font-bold mb-1">{data.name}</p>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span>Fat: R${data.faturamento.toFixed(0)}</span>
-                                            <GrowthBadge val={data.revGrowth} hasPrev={data.name !== 'Ago' && data.name !== 'Jan'} />
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={yearlyChartData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
+                        <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fontSize: 12}} tickFormatter={(val) => `R$${val/1000}k`} domain={['auto', 'auto']} />
+                        <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                        
+                        <Tooltip 
+                            content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                        <div className="bg-white p-2 border shadow-sm rounded text-xs w-40">
+                                            <p className="font-bold mb-1">{data.name}</p>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span>Fat: R${data.faturamento.toFixed(0)}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            }
-                            return null;
-                        }}
-                      />
+                                    );
+                                }
+                                return null;
+                            }}
+                        />
 
-                      <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#bae6fd" radius={[4, 4, 0, 0]} barSize={30}>
-                         <LabelList dataKey="petsCount" position="top" style={{fontSize: 10, fill: '#0ea5e9'}} />
-                      </Bar>
-                      <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#0ea5e9" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
-                          <LabelList dataKey="faturamento" position="top" offset={10} style={{fontSize: 10, fill: '#0ea5e9', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
-                      </Line>
-                  </ComposedChart>
-              </ResponsiveContainer>
+                        <Bar yAxisId="right" dataKey="petsCount" name="Pets" fill="#a7f3d0" radius={[4, 4, 0, 0]} barSize={30}>
+                            <LabelList dataKey="petsCount" position="top" style={{fontSize: 10, fill: '#059669'}} />
+                        </Bar>
+                        {/* Yearly Color: Emerald */}
+                        <Line yAxisId="left" type="monotone" dataKey="faturamento" name="Faturamento" stroke="#059669" strokeWidth={3} dot={{r: 4}} activeDot={{r: 6}}>
+                            <LabelList dataKey="faturamento" position="top" offset={10} style={{fontSize: 10, fill: '#059669', fontWeight: 'bold'}} formatter={(val: number) => `R$${val}`}/>
+                        </Line>
+                    </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Data Table with Growth */}
+              <ChartDataTable data={yearlyChartData} showGrowth />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
