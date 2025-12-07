@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -774,7 +775,7 @@ const PaymentManager: React.FC<{
 
         return (
             <div 
-                className={`p-3 bg-white rounded-lg shadow-sm border border-gray-100 mb-2 ${colorClass}`}
+                className={`p-3 bg-white rounded-lg shadow-sm border border-gray-100 mb-2 ${colorClass} min-w-0`}
                 onContextMenu={(e) => {
                     e.preventDefault();
                     setContextMenu({ x: e.clientX, y: e.clientY, app });
@@ -1028,26 +1029,62 @@ const ScheduleManager: React.FC<{
     clients: Client[];
     services: Service[];
     onAdd: (app: Appointment, client: Client, pet: Pet, services: Service[]) => void;
+    onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[]) => void;
     onUpdateStatus: (id: string, status: Appointment['status']) => void;
     onDelete: (id: string) => void;
     googleUser: GoogleUser | null;
-}> = ({ appointments, clients, services, onAdd, onUpdateStatus, onDelete }) => {
+}> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete }) => {
     const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [detailsApp, setDetailsApp] = useState<Appointment | null>(null);
     const [contextMenu, setContextMenu] = useState<{x: number, y: number, appId: string} | null>(null);
+    const [editingAppId, setEditingAppId] = useState<string | null>(null);
     
-    // Form State (Condensed for brevity, same logic)
+    // Form State
     const [clientSearch, setClientSearch] = useState(''); const [selectedClient, setSelectedClient] = useState(''); const [selectedPet, setSelectedPet] = useState(''); const [selectedService, setSelectedService] = useState(''); const [selectedAddServices, setSelectedAddServices] = useState<string[]>([]); const [date, setDate] = useState(new Date().toISOString().split('T')[0]); const [time, setTime] = useState('09:00'); const [notes, setNotes] = useState('');
 
-    const resetForm = () => { setClientSearch(''); setSelectedClient(''); setSelectedPet(''); setSelectedService(''); setSelectedAddServices([]); setTime('09:00'); setNotes(''); setIsModalOpen(false); };
-    const handleSave = () => { /* Same logic as before */ 
+    const resetForm = () => { setClientSearch(''); setSelectedClient(''); setSelectedPet(''); setSelectedService(''); setSelectedAddServices([]); setTime('09:00'); setNotes(''); setEditingAppId(null); setIsModalOpen(false); };
+    
+    const handleStartEdit = (app: Appointment) => {
+        setEditingAppId(app.id);
+        setSelectedClient(app.clientId);
+        setSelectedPet(app.petId);
+        setSelectedService(app.serviceId);
+        setSelectedAddServices(app.additionalServiceIds || []);
+        
+        const d = new Date(app.date);
+        setDate(d.toISOString().split('T')[0]);
+        setTime(d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}));
+        setNotes(app.notes || '');
+        
+        setDetailsApp(null);
+        setIsModalOpen(true);
+    };
+
+    const handleSave = () => {
         if (!selectedClient || !selectedPet || !selectedService || !date || !time) return;
         const client = clients.find(c => c.id === selectedClient); const pet = client?.pets.find(p => p.id === selectedPet); const mainSvc = services.find(s => s.id === selectedService); const addSvcs = selectedAddServices.map(id => services.find(s => s.id === id)).filter(s => s) as Service[];
+        
         if (client && pet && mainSvc) {
-            const newApp: Appointment = { id: `local_${Date.now()}`, clientId: client.id, petId: pet.id, serviceId: mainSvc.id, additionalServiceIds: selectedAddServices, date: `${date}T${time}:00`, status: 'agendado', notes: notes };
-            onAdd(newApp, client, pet, [mainSvc, ...addSvcs]); resetForm();
+            const newApp: Appointment = { 
+                id: editingAppId || `local_${Date.now()}`, 
+                clientId: client.id, 
+                petId: pet.id, 
+                serviceId: mainSvc.id, 
+                additionalServiceIds: selectedAddServices, 
+                date: `${date}T${time}:00`, 
+                status: 'agendado', 
+                notes: notes,
+                googleEventId: editingAppId ? appointments.find(a=>a.id===editingAppId)?.googleEventId : undefined
+            };
+            
+            if (editingAppId) {
+                onEdit(newApp, client, pet, [mainSvc, ...addSvcs]);
+            } else {
+                onAdd(newApp, client, pet, [mainSvc, ...addSvcs]);
+            }
+            resetForm();
         }
     };
     const handleDeleteFromContext = () => { if(contextMenu && confirm('Excluir?')) onDelete(contextMenu.appId); setContextMenu(null); }
@@ -1187,6 +1224,7 @@ const ScheduleManager: React.FC<{
                 {renderCalendar()}
                 {contextMenu && (
                     <div className="fixed bg-white shadow-xl border border-gray-200 rounded-lg z-[100] py-1 min-w-[150px]" style={{ top: contextMenu.y, left: contextMenu.x }}>
+                        <button onClick={() => handleStartEdit(appointments.find(a => a.id === contextMenu.appId)!)} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"><Edit2 size={14}/> Editar</button>
                         <button onClick={handleDeleteFromContext} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2"><Trash2 size={14}/> Excluir</button>
                     </div>
                 )}
@@ -1209,6 +1247,9 @@ const ScheduleManager: React.FC<{
                                 <div className="flex items-start gap-2"><FileText size={16} className="text-orange-500"/><span className="font-medium italic text-gray-600">{detailsApp.notes || pet?.notes || 'Sem obs'}</span></div>
                                 <div className="pt-2 border-t mt-2"><div className="flex flex-wrap gap-1"><span className="px-2 py-1 bg-brand-100 text-brand-700 rounded-full text-xs font-bold">{s?.name}</span>{addSvcs?.map(as => <span key={as?.id} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold">{as?.name}</span>)}</div></div>
                             </div>
+                            <div className="mt-6 flex justify-end">
+                                <button onClick={() => handleStartEdit(detailsApp)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-brand-700"><Edit2 size={16}/> Editar</button>
+                            </div>
                         </div>
                     </div>
                 )
@@ -1219,7 +1260,7 @@ const ScheduleManager: React.FC<{
                 <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                            <h3 className="font-bold text-lg text-gray-800">Novo Agendamento</h3>
+                            <h3 className="font-bold text-lg text-gray-800">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
                             <button onClick={resetForm}><X size={24} className="text-gray-400 hover:text-gray-600"/></button>
                         </div>
                         <div className="p-4 overflow-y-auto custom-scrollbar space-y-4">
@@ -1444,7 +1485,7 @@ const App: React.FC = () => {
               const currentServices = db.getServices(); const service = currentServices.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || currentServices[0];
               const addServiceIds: string[] = []; [row[8], row[9], row[10]].forEach(name => { if (name) { const foundSvc = currentServices.find(s => s.name.toLowerCase() === name.toLowerCase().trim()); if (foundSvc) addServiceIds.push(foundSvc.id); } });
               let paidAmount = 0; if (paidAmountStr) { paidAmount = parseFloat(paidAmountStr.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')); if(isNaN(paidAmount)) paidAmount = 0; }
-              if(client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: 'agendado', notes: row[13], durationTotal: parseInt(row[14] || '0'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any }); }
+              if(client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: 'agendado', notes: row[13], durationTotal: parseInt(row[14] || '0'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: undefined }); }
           });
           if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); }
           if(loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if(!silent) alert(`${loadedApps.length} agendamentos carregados!`); } else { if(!silent) alert('Nenhum agendamento válido encontrado.'); }
@@ -1463,6 +1504,34 @@ const App: React.FC = () => {
         try { await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:O', rowData); alert('Agendamento salvo no Calendar e na Planilha!'); } catch (e) { alert('Erro ao salvar na planilha (verifique permissões). Salvo apenas localmente e no Calendar.'); }
     }
     const newApp = { ...app, googleEventId }; const updated = [...appointments, newApp]; setAppointments(updated); db.saveAppointments(updated);
+  }
+
+  const handleEditAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[]) => {
+    let googleEventId = app.googleEventId;
+    
+    // Update Google Calendar
+    if (accessToken && googleEventId) {
+         const description = appServices.map(s => s.name).join(' + ');
+         let totalDuration = 0; appServices.forEach(s => totalDuration += (s.durationMin || 0));
+         await googleService.updateEvent(accessToken, googleEventId, { summary: `Banho/Tosa: ${pet.name} - ${client.name}`, description: `Serviços: ${description}\nObs: ${pet.notes}`, startTime: app.date, durationMin: totalDuration });
+    }
+
+    // Update Sheet (Only works if imported from sheet originally)
+    if (accessToken && app.id.startsWith('sheet_')) {
+        const parts = app.id.split('_');
+        const index = parseInt(parts[1]);
+        const rowNumber = index + 2;
+        const range = `Agendamento!A${rowNumber}:O${rowNumber}`;
+        const dateObj = new Date(app.date); const dateStr = dateObj.toLocaleDateString('pt-BR'); const timeStr = dateObj.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+        let totalDuration = 0; appServices.forEach(s => totalDuration += (s.durationMin || 0));
+        const rowData = [ pet.name, client.name, client.phone, `${client.address} ${client.complement || ''}`.trim(), pet.breed, pet.size, pet.coat, appServices[0]?.name || '', appServices[1]?.name || '', appServices[2]?.name || '', appServices[3]?.name || '', dateStr, timeStr, pet.notes, totalDuration ];
+        try { await googleService.updateSheetValues(accessToken, SHEET_ID, range, rowData); } catch(e) { console.error("Update sheet failed", e); }
+    }
+
+    const updated = appointments.map(a => a.id === app.id ? app : a);
+    setAppointments(updated);
+    db.saveAppointments(updated);
+    alert('Agendamento atualizado!');
   }
 
   const handleUpdateAppStatus = (id: string, status: Appointment['status']) => { const updated = appointments.map(a => a.id === id ? { ...a, status } : a); setAppointments(updated); db.saveAppointments(updated); }
@@ -1490,7 +1559,7 @@ const App: React.FC = () => {
         {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} accessToken={accessToken} sheetId={SHEET_ID} />}
         {currentView === 'clients' && <ClientManager clients={clients} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
         {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => handleSyncServices(accessToken!, false)} accessToken={accessToken} sheetId={SHEET_ID} />}
-        {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onUpdateStatus={handleUpdateAppStatus} onDelete={handleDeleteApp} googleUser={googleUser} />}
+        {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateAppStatus} onDelete={handleDeleteApp} googleUser={googleUser} />}
       </Layout>
     </HashRouter>
   );
