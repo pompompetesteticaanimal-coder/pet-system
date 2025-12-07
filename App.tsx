@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { db } from './services/db';
@@ -209,7 +209,47 @@ const PaymentManager: React.FC<{
     const [method, setMethod] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    // Swipe Refs
+    const touchStart = useRef<number | null>(null);
+    const touchEnd = useRef<number | null>(null);
+    const minSwipeDistance = 50;
+
     const filteredApps = appointments.filter(a => a.date.startsWith(selectedDate));
+
+    const navigateDate = (days: number) => {
+        const [year, month, day] = selectedDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        date.setDate(date.getDate() + days);
+        const newDate = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+        setSelectedDate(newDate);
+    };
+
+    const goToToday = () => {
+        setSelectedDate(new Date().toISOString().split('T')[0]);
+    };
+
+    const onTouchStart = (e: React.TouchEvent) => {
+        touchEnd.current = null;
+        touchStart.current = e.targetTouches[0].clientX;
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+        touchEnd.current = e.targetTouches[0].clientX;
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart.current || !touchEnd.current) return;
+        const distance = touchStart.current - touchEnd.current;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe) {
+            navigateDate(1); // Swipe Left -> Next Day
+        }
+        if (isRightSwipe) {
+            navigateDate(-1); // Swipe Right -> Prev Day
+        }
+    };
 
     const calculateExpected = (app: Appointment) => {
         const main = services.find(s => s.id === app.serviceId);
@@ -338,31 +378,54 @@ const PaymentManager: React.FC<{
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">Financeiro & Pagamentos</h2>
-                <input 
-                    type="date" 
-                    value={selectedDate} 
-                    onChange={e => setSelectedDate(e.target.value)}
-                    className="w-full md:w-auto border p-2 rounded-lg bg-white shadow-sm font-medium"
-                />
+        <div 
+            className="space-y-6 h-full flex flex-col"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+        >
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 flex-shrink-0">
+                <h2 className="text-2xl font-bold text-gray-800">Pagamentos</h2>
+                
+                <div className="flex items-center gap-2 w-full md:w-auto bg-white p-1 rounded-lg border shadow-sm">
+                    <button onClick={() => navigateDate(-1)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
+                        <ChevronLeft size={20} />
+                    </button>
+                    
+                    <button onClick={goToToday} className="px-4 py-2 bg-brand-50 text-brand-700 font-bold rounded-lg text-sm hover:bg-brand-100">
+                        Hoje
+                    </button>
+                    
+                    <button onClick={() => navigateDate(1)} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
+                        <ChevronRight size={20} />
+                    </button>
+
+                    <input 
+                        type="date" 
+                        value={selectedDate} 
+                        onChange={e => setSelectedDate(e.target.value)}
+                        className="border-l pl-2 ml-2 outline-none text-sm text-gray-700 font-medium bg-transparent"
+                    />
+                </div>
             </div>
 
             {/* Mobile View (Cards) */}
-            <div className="md:hidden">
+            <div className="md:hidden flex-1 overflow-y-auto min-h-0">
                 {filteredApps.map(app => (
                     <PaymentRow key={app.id} app={app} isMobile={true} />
                 ))}
                 {filteredApps.length === 0 && (
-                    <div className="text-center p-8 text-gray-400 bg-white rounded-xl border border-dashed">Nenhum agendamento para hoje.</div>
+                    <div className="text-center p-8 text-gray-400 bg-white rounded-xl border border-dashed flex flex-col items-center justify-center h-48">
+                        <p>Nenhum agendamento para este dia.</p>
+                        <p className="text-xs mt-2 opacity-60">Deslize para mudar o dia</p>
+                    </div>
                 )}
             </div>
 
             {/* Desktop View (Table) */}
-            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 min-h-0 overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hora/Cliente</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serviços</th>
