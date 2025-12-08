@@ -194,7 +194,10 @@ const RevenueView: React.FC<{
 
   // --- Chart Data Generators ---
   const getWeeklyChartData = () => {
-      const date = new Date(selectedDate);
+      // CORREÇÃO: Usar a data local para decompor o início da semana, evitando erro de fuso horário
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const date = new Date(y, m - 1, d); // Cria data usando hora local 00:00
+
       const day = date.getDay(); 
       const diff = date.getDate() - day;
       const startOfWeek = new Date(date);
@@ -206,11 +209,25 @@ const RevenueView: React.FC<{
       businessDays.forEach(dayIndex => {
           const current = new Date(startOfWeek);
           current.setDate(startOfWeek.getDate() + dayIndex);
-          const dateStr = current.toISOString().split('T')[0];
           
-          const dailyApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
+          // Formatar data localmente para YYYY-MM-DD
+          const cYear = current.getFullYear();
+          const cMonth = String(current.getMonth() + 1).padStart(2, '0');
+          const cDay = String(current.getDate()).padStart(2, '0');
+          const targetDateStr = `${cYear}-${cMonth}-${cDay}`;
+          
+          const dailyApps = appointments.filter(a => {
+              if (a.status === 'cancelado') return false;
+              // Converter a data do agendamento (ISO) para data local YYYY-MM-DD
+              const aDate = new Date(a.date);
+              const aYear = aDate.getFullYear();
+              const aMonth = String(aDate.getMonth() + 1).padStart(2, '0');
+              const aDay = String(aDate.getDate()).padStart(2, '0');
+              return `${aYear}-${aMonth}-${aDay}` === targetDateStr;
+          });
+
           const totalRevenue = dailyApps.reduce((acc, app) => acc + calculateGrossRevenue(app), 0);
-          const formattedDate = current.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          const formattedDate = current.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', weekday: 'short' });
 
           let growth = 0;
           if (data.length > 0) {
@@ -220,7 +237,7 @@ const RevenueView: React.FC<{
 
           data.push({
               name: formattedDate,
-              fullDate: dateStr,
+              fullDate: targetDateStr,
               faturamento: totalRevenue,
               petsCount: dailyApps.length,
               growth
@@ -339,7 +356,8 @@ const RevenueView: React.FC<{
   const dailyStats = calculateStats(dailyApps);
 
   const { start: weekStart, end: weekEnd } = (() => {
-      const date = new Date(selectedDate);
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const date = new Date(y, m - 1, d);
       const day = date.getDay();
       const diff = date.getDate() - day;
       const start = new Date(date); start.setDate(diff); 
