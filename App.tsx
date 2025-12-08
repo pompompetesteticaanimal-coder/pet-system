@@ -801,13 +801,23 @@ const PaymentManager: React.FC<{
         setIsSaving(false);
     };
 
-    const PaymentRow = ({ app, colorClass }: {app: Appointment, colorClass?: string}) => {
+    const PaymentRow = ({ app, statusColor }: {app: Appointment, statusColor: string}) => {
         const client = clients.find(c => c.id === app.clientId);
         const pet = client?.pets.find(p => p.id === app.petId);
         const mainSvc = services.find(s => s.id === app.serviceId);
+        const addSvcs = app.additionalServiceIds?.map(id => services.find(s => s.id === id)).filter(x=>x) as Service[] || [];
         const expected = calculateExpected(app);
         const isPaid = !!app.paidAmount && !!app.paymentMethod;
         const isEditing = editingId === app.id;
+        
+        // SERVICE COLOR LOGIC (Left Border)
+        const allServiceNames = [mainSvc?.name, ...addSvcs.map(s => s.name)].filter(n => n).join(' ').toLowerCase();
+        let serviceBorderColor = 'border-sky-400';
+        if (allServiceNames.includes('tesoura')) serviceBorderColor = 'border-pink-500'; 
+        else if (allServiceNames.includes('tosa normal')) serviceBorderColor = 'border-orange-500';
+        else if (allServiceNames.includes('higi')) serviceBorderColor = 'border-yellow-500';
+        else if (allServiceNames.includes('pacote') && allServiceNames.includes('mensal')) serviceBorderColor = 'border-purple-500';
+        else if (allServiceNames.includes('pacote') && allServiceNames.includes('quinzenal')) serviceBorderColor = 'border-indigo-500';
 
         if(isEditing) {
             return (
@@ -845,7 +855,7 @@ const PaymentManager: React.FC<{
 
         return (
             <div 
-                className={`p-3 bg-white rounded-lg shadow-sm border border-gray-100 mb-2 ${colorClass} min-w-0`}
+                className={`p-3 rounded-lg shadow-sm border border-gray-100 mb-2 border-l-[6px] ${serviceBorderColor} ${statusColor} min-w-0`}
                 onContextMenu={(e) => {
                     e.preventDefault();
                     setContextMenu({ x: e.clientX, y: e.clientY, app });
@@ -873,13 +883,16 @@ const PaymentManager: React.FC<{
                     </div>
                 </div>
                 
-                <div className="text-[10px] text-gray-600 bg-gray-50 p-1.5 rounded mb-2 truncate">
-                     <span className="font-bold">{mainSvc?.name}</span>
-                     {app.additionalServiceIds?.length ? ` + ${app.additionalServiceIds.length} extras` : ''}
+                {/* List all services as small tags */}
+                <div className="flex flex-wrap gap-1 mb-2">
+                     {mainSvc && <span className="text-[9px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">{mainSvc.name}</span>}
+                     {addSvcs.map((s, idx) => (
+                         <span key={idx} className="text-[9px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">{s.name}</span>
+                     ))}
                 </div>
 
-                <button onClick={() => handleStartEdit(app)} className="w-full bg-brand-50 hover:bg-brand-100 text-brand-700 p-2 rounded flex items-center justify-center gap-2 font-bold text-xs transition">
-                    <DollarSign size={14}/> {isPaid ? 'Editar' : 'Receber'}
+                <button onClick={() => handleStartEdit(app)} className="w-full bg-white/50 hover:bg-white text-gray-700 p-2 rounded flex items-center justify-center gap-2 font-bold text-xs transition border border-gray-200">
+                    <DollarSign size={14}/> {isPaid ? 'Editar Pagamento' : 'Receber Valor'}
                 </button>
             </div>
         )
@@ -914,9 +927,9 @@ const PaymentManager: React.FC<{
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0 bg-gray-50/50 rounded-xl border border-gray-100 p-2">
-                {activeTab === 'toReceive' && toReceiveApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-yellow-400" />)}
-                {activeTab === 'pending' && pendingApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-red-500 bg-red-50/30" />)}
-                {activeTab === 'paid' && paidApps.map(app => <PaymentRow key={app.id} app={app} colorClass="border-l-4 border-l-green-500 opacity-90" />)}
+                {activeTab === 'toReceive' && toReceiveApps.map(app => <PaymentRow key={app.id} app={app} statusColor="bg-yellow-50" />)}
+                {activeTab === 'pending' && pendingApps.map(app => <PaymentRow key={app.id} app={app} statusColor="bg-red-50" />)}
+                {activeTab === 'paid' && paidApps.map(app => <PaymentRow key={app.id} app={app} statusColor="bg-green-50/50" />)}
             </div>
 
             {contextMenu && (
