@@ -64,12 +64,3 @@ export interface GoogleUser {
 }
 
 export type ViewState = 'revenue' | 'costs' | 'payments' | 'clients' | 'schedule' | 'services';
-
-export type SidebarGroupKey = 'operacional' | 'cadastros' | 'gerencial';
-
-export interface AppSettings {
-  appName: string;
-  logoUrl: string;
-  theme: string; // Key do tema selecionado
-  sidebarOrder: SidebarGroupKey[];
-}
