@@ -1187,22 +1187,36 @@ const ScheduleManager: React.FC<{
     const AppointmentCard = ({ app, isSmall }: { app: Appointment, isSmall?: boolean }) => {
         const client = clients.find(c => c.id === app.clientId);
         const pet = client?.pets.find(p => p.id === app.petId);
-        const s = services.find(srv => srv.id === app.serviceId);
-        const s1 = app.additionalServiceIds?.[0] ? services.find(srv => srv.id === app.additionalServiceIds[0]) : null;
-        const isTosa = s?.name.toLowerCase().includes('tosa');
-        const isBath = s?.name.toLowerCase().includes('banho');
-        const color = isTosa ? 'bg-orange-100 border-orange-200 text-orange-900' : isBath ? 'bg-blue-100 border-blue-200 text-blue-900' : 'bg-purple-100 border-purple-200 text-purple-900';
+        
+        // Find all associated services
+        const mainSvc = services.find(srv => srv.id === app.serviceId);
+        const addSvcs = app.additionalServiceIds?.map(id => services.find(s => s.id === id)).filter(x=>x) as Service[] || [];
+        const allServiceNames = [mainSvc?.name, ...addSvcs.map(s => s.name)].filter(n => n).join(' ').toLowerCase();
+
+        // Determine Color based on Priority
+        let colorClass = 'bg-sky-100 border-sky-300 text-sky-900'; // Default Banho
+        if (allServiceNames.includes('tesoura')) colorClass = 'bg-pink-100 border-pink-300 text-pink-900'; // Tosa Tesoura (Priority 1)
+        else if (allServiceNames.includes('tosa normal')) colorClass = 'bg-orange-100 border-orange-300 text-orange-900'; // Tosa Normal
+        else if (allServiceNames.includes('higi')) colorClass = 'bg-yellow-100 border-yellow-300 text-yellow-900'; // Tosa Higiênica
+        else if (allServiceNames.includes('pacote') && allServiceNames.includes('mensal')) colorClass = 'bg-purple-100 border-purple-300 text-purple-900'; // Pacote Mensal
+        else if (allServiceNames.includes('pacote') && allServiceNames.includes('quinzenal')) colorClass = 'bg-indigo-100 border-indigo-300 text-indigo-900'; // Pacote Quinzenal
         
         return (
             <div 
-                className={`relative flex-1 w-full rounded p-0.5 md:p-1 border shadow-sm ${color} z-20 min-h-[40px] md:min-h-[50px] cursor-pointer select-none hover:opacity-80 transition overflow-hidden`}
+                className={`relative flex-1 w-full rounded-lg p-1.5 border shadow-sm ${colorClass} z-20 min-h-[50px] cursor-pointer select-none hover:opacity-90 active:scale-95 transition-all overflow-hidden flex flex-col justify-center`}
                 onClick={(e) => { e.stopPropagation(); setDetailsApp(app); }}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, appId: app.id }); }}
             >
-                <div className="font-bold text-[8px] md:text-[10px] leading-tight truncate">{client?.name}</div>
-                <div className="font-bold text-[8px] md:text-[10px] leading-tight truncate text-gray-700">{pet?.name}</div>
-                <div className="text-[7px] md:text-[9px] leading-tight truncate opacity-90">{s?.name}</div>
-                {s1 && <div className="text-[7px] md:text-[9px] leading-tight truncate opacity-90 font-medium border-t border-black/10 pt-0.5">{s1.name}</div>}
+                <div className="font-bold text-[10px] leading-tight truncate">{client?.name}</div>
+                <div className="font-bold text-[10px] leading-tight truncate opacity-80">{pet?.name}</div>
+                
+                {/* List all services */}
+                <div className="mt-1 flex flex-wrap gap-0.5">
+                    {mainSvc && <span className="text-[8px] bg-white/40 px-1 rounded-sm leading-tight">{mainSvc.name}</span>}
+                    {addSvcs.map((s, idx) => (
+                         <span key={idx} className="text-[8px] bg-white/40 px-1 rounded-sm leading-tight">{s.name}</span>
+                    ))}
+                </div>
             </div>
         )
     }
@@ -1214,17 +1228,17 @@ const ScheduleManager: React.FC<{
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             const days = []; for(let i=0; i<new Date(year, month, 1).getDay(); i++) days.push(null); for(let i=1; i<=daysInMonth; i++) days.push(new Date(year, month, i));
             return (
-                <div className="grid grid-cols-7 gap-px h-full auto-rows-fr bg-gray-200 border border-gray-200 rounded-xl overflow-hidden">
-                    {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="bg-gray-50 text-center py-1 text-[10px] font-bold text-gray-500 uppercase">{d}</div>)}
+                <div className="grid grid-cols-7 gap-px h-full auto-rows-fr bg-gray-200 border border-gray-200 rounded-xl overflow-hidden shadow-inner">
+                    {['D','S','T','Q','Q','S','S'].map(d => <div key={d} className="bg-gray-50 text-center py-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider">{d}</div>)}
                     {days.map((d, idx) => {
                          if (!d) return <div key={`pad-${idx}`} className="bg-white min-h-[50px]" />;
                          const dateStr = d.toISOString().split('T')[0];
                          const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
                          const isToday = dateStr === new Date().toISOString().split('T')[0];
                          return (
-                             <div key={idx} className={`bg-white p-0.5 min-h-[60px] flex flex-col border border-gray-50 ${isToday ? 'bg-blue-50' : ''}`}>
-                                 <div className={`text-[10px] font-bold mb-0.5 text-center ${isToday ? 'text-brand-600' : 'text-gray-500'}`}>{d.getDate()}</div>
-                                 <div className="flex-1 space-y-0.5 overflow-y-auto custom-scrollbar">{dayApps.map(app => <AppointmentCard key={app.id} app={app} isSmall />)}</div>
+                             <div key={idx} className={`bg-white p-0.5 min-h-[60px] flex flex-col border border-gray-50 ${isToday ? 'bg-blue-50/50' : ''}`}>
+                                 <div className={`text-[10px] font-bold mb-0.5 text-center w-5 h-5 mx-auto rounded-full flex items-center justify-center ${isToday ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-500'}`}>{d.getDate()}</div>
+                                 <div className="flex-1 space-y-1 overflow-y-auto custom-scrollbar p-0.5">{dayApps.map(app => <AppointmentCard key={app.id} app={app} isSmall />)}</div>
                              </div>
                          )
                     })}
@@ -1235,29 +1249,29 @@ const ScheduleManager: React.FC<{
         let daysIndices = viewMode === 'week' ? [2, 3, 4, 5, 6] : [start.getDay()];
         const hours = Array.from({length: 10}, (_, i) => i + 9); 
         return (
-            <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
                 <div className="flex border-b border-gray-200">
                     <div className="w-10 md:w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50"></div>
                     {daysIndices.map((dayIdx) => {
                         const d = new Date(startOfWeek); d.setDate(d.getDate() + dayIdx);
                         const isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
                         return (
-                            <div key={dayIdx} className={`flex-1 text-center py-1 border-r border-gray-200 ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                                <div className={`text-[10px] font-bold uppercase ${isToday ? 'text-brand-600' : 'text-gray-500'}`}>{d.toLocaleDateString('pt-BR', {weekday: 'short'})}</div>
-                                <div className={`text-xs font-bold ${isToday ? 'text-brand-700' : 'text-gray-700'}`}>{d.getDate()}</div>
+                            <div key={dayIdx} className={`flex-1 text-center py-2 border-r border-gray-200 ${isToday ? 'bg-blue-50/50' : 'bg-gray-50'}`}>
+                                <div className={`text-[10px] font-bold uppercase tracking-wide ${isToday ? 'text-brand-600' : 'text-gray-500'}`}>{d.toLocaleDateString('pt-BR', {weekday: 'short'})}</div>
+                                <div className={`text-sm font-bold w-7 h-7 mx-auto rounded-full flex items-center justify-center mt-1 ${isToday ? 'bg-brand-600 text-white shadow' : 'text-gray-700'}`}>{d.getDate()}</div>
                             </div>
                         )
                     })}
                 </div>
                 <div className="flex-1 overflow-y-auto" onClick={() => setContextMenu(null)}>
                     {hours.map(h => (
-                        <div key={h} className="flex min-h-[60px] md:min-h-[80px] border-b border-gray-100 relative">
+                        <div key={h} className="flex min-h-[60px] md:min-h-[100px] border-b border-gray-100 relative group">
                             <div className="w-10 md:w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50 text-[10px] text-gray-400 font-medium p-1 text-right sticky left-0 z-10">{String(h).padStart(2,'0')}:00</div>
                             {daysIndices.map((dayIdx) => {
                                 const d = new Date(startOfWeek); d.setDate(d.getDate() + dayIdx); const dateStr = d.toISOString().split('T')[0];
                                 const slotApps = appointments.filter(a => { if(a.status === 'cancelado') return false; const aDate = new Date(a.date); return aDate.getDate() === d.getDate() && aDate.getMonth() === d.getMonth() && aDate.getFullYear() === d.getFullYear() && aDate.getHours() === h; });
                                 return (
-                                    <div key={`${dateStr}-${h}`} className="flex-1 border-r border-gray-100 relative p-0.5 group hover:bg-gray-50 flex flex-col gap-0.5 min-w-0"
+                                    <div key={`${dateStr}-${h}`} className="flex-1 border-r border-gray-100 relative p-1 hover:bg-gray-50/80 transition flex flex-col gap-1 min-w-0"
                                         onClick={() => { setDate(dateStr); setTime(`${String(h).padStart(2,'0')}:00`); setIsModalOpen(true); }}
                                         onContextMenu={(e) => e.preventDefault()}
                                     >
@@ -1275,27 +1289,27 @@ const ScheduleManager: React.FC<{
     return (
         <div className="space-y-3 animate-fade-in relative h-full flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-center gap-2 flex-shrink-0 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
                     <div className="flex bg-gray-100 p-1 rounded-lg flex-shrink-0">
-                        <button onClick={() => setViewMode('day')} className={`px-2 py-1 text-xs font-bold rounded ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
-                        <button onClick={() => setViewMode('week')} className={`px-2 py-1 text-xs font-bold rounded ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
-                        <button onClick={() => setViewMode('month')} className={`px-2 py-1 text-xs font-bold rounded ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
+                        <button onClick={() => setViewMode('day')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
+                        <button onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
+                        <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                        <button onClick={() => navigate('prev')} className="p-1 hover:bg-gray-100 rounded text-gray-600"><ChevronLeft size={16}/></button>
-                        <span className="text-xs font-bold text-gray-800 min-w-[80px] text-center truncate">{viewMode === 'day' && currentDate.toLocaleDateString('pt-BR')} {viewMode === 'week' && `Sem ${currentDate.getDate()}`} {viewMode === 'month' && currentDate.toLocaleDateString('pt-BR', {month:'short'})}</span>
-                        <button onClick={() => navigate('next')} className="p-1 hover:bg-gray-100 rounded text-gray-600"><ChevronRight size={16}/></button>
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <button onClick={() => navigate('prev')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronLeft size={18}/></button>
+                        <span className="text-sm font-bold text-gray-800 min-w-[90px] text-center truncate">{viewMode === 'day' && currentDate.toLocaleDateString('pt-BR')} {viewMode === 'week' && `Sem ${currentDate.getDate()}`} {viewMode === 'month' && currentDate.toLocaleDateString('pt-BR', {month:'short', year: 'numeric'})}</span>
+                        <button onClick={() => navigate('next')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronRight size={18}/></button>
                     </div>
                 </div>
-                <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full md:w-auto bg-brand-600 text-white px-3 py-2 rounded-lg font-bold shadow-sm hover:bg-brand-700 transition flex items-center justify-center gap-1 text-xs"><Plus size={16} /> Novo</button>
+                <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full md:w-auto bg-brand-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md shadow-brand-200 hover:bg-brand-700 active:scale-95 transition flex items-center justify-center gap-1.5 text-xs"><Plus size={18} /> Novo Agendamento</button>
             </div>
 
             <div className="flex-1 min-h-0 relative">
                 {renderCalendar()}
                 {contextMenu && (
-                    <div className="fixed bg-white shadow-xl border border-gray-200 rounded-lg z-[100] py-1 min-w-[150px]" style={{ top: contextMenu.y, left: contextMenu.x }}>
-                        <button onClick={() => handleStartEdit(appointments.find(a => a.id === contextMenu.appId)!)} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex items-center gap-2"><Edit2 size={14}/> Editar</button>
-                        <button onClick={handleDeleteFromContext} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2"><Trash2 size={14}/> Excluir</button>
+                    <div className="fixed bg-white shadow-xl border border-gray-200 rounded-xl z-[100] py-1 min-w-[160px] overflow-hidden" style={{ top: contextMenu.y, left: contextMenu.x }}>
+                        <button onClick={() => handleStartEdit(appointments.find(a => a.id === contextMenu.appId)!)} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm flex items-center gap-3 text-gray-700 font-medium border-b border-gray-50"><Edit2 size={16}/> Editar</button>
+                        <button onClick={handleDeleteFromContext} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 text-sm flex items-center gap-3 font-medium"><Trash2 size={16}/> Excluir</button>
                     </div>
                 )}
             </div>
@@ -1305,21 +1319,27 @@ const ScheduleManager: React.FC<{
                 const client = clients.find(c => c.id === detailsApp.clientId); const pet = client?.pets.find(p => p.id === detailsApp.petId); const s = services.find(srv => srv.id === detailsApp.serviceId); const addSvcs = detailsApp.additionalServiceIds?.map(id => services.find(srv => srv.id === id)).filter(x=>x);
                 return (
                     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setDetailsApp(null)}>
-                        <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setDetailsApp(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X size={24}/></button>
-                            <div className="mb-4">
-                                <h3 className="text-xl font-bold text-gray-800">{pet?.name}</h3>
-                                <p className="text-gray-500">{client?.name}</p>
+                        <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative animate-scale-up" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => setDetailsApp(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full p-1"><X size={20}/></button>
+                            <div className="mb-6 text-center">
+                                <h3 className="text-2xl font-bold text-gray-800">{pet?.name}</h3>
+                                <p className="text-gray-500 font-medium">{client?.name}</p>
                             </div>
-                            <div className="space-y-3 text-sm">
-                                <div className="flex items-center gap-2"><Phone size={16} className="text-blue-500"/><span className="font-medium">{client?.phone}</span></div>
-                                <div className="flex items-center gap-2"><MapPin size={16} className="text-purple-500"/><span className="font-medium">{client?.address} {client?.complement}</span></div>
-                                <div className="flex items-start gap-2"><FileText size={16} className="text-orange-500"/><span className="font-medium italic text-gray-600">{detailsApp.notes || pet?.notes || 'Sem obs'}</span></div>
-                                <div className="pt-2 border-t mt-2"><div className="flex flex-wrap gap-1"><span className="px-2 py-1 bg-brand-100 text-brand-700 rounded-full text-xs font-bold">{s?.name}</span>{addSvcs?.map(as => <span key={as?.id} className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold">{as?.name}</span>)}</div></div>
+                            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 text-sm mb-6">
+                                <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><Phone size={16}/></div><span className="font-medium text-gray-700">{client?.phone}</span></div>
+                                <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center"><MapPin size={16}/></div><span className="font-medium text-gray-700 truncate">{client?.address} {client?.complement}</span></div>
+                                <div className="flex items-start gap-3"><div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0"><FileText size={16}/></div><span className="font-medium italic text-gray-600 pt-1">{detailsApp.notes || pet?.notes || 'Sem obs'}</span></div>
                             </div>
-                            <div className="mt-6 flex justify-end">
-                                <button onClick={() => handleStartEdit(detailsApp)} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-brand-700"><Edit2 size={16}/> Editar</button>
+                            
+                            <div className="mb-6">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Serviços</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="px-3 py-1.5 bg-brand-100 text-brand-700 rounded-lg text-xs font-bold shadow-sm">{s?.name}</span>
+                                    {addSvcs?.map(as => <span key={as?.id} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold border border-gray-200">{as?.name}</span>)}
+                                </div>
                             </div>
+
+                            <button onClick={() => handleStartEdit(detailsApp)} className="w-full py-3.5 bg-brand-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-95 transition shadow-lg shadow-brand-200"><Edit2 size={18}/> Editar Agendamento</button>
                         </div>
                     </div>
                 )
@@ -1328,7 +1348,7 @@ const ScheduleManager: React.FC<{
             {/* NEW APPOINTMENT MODAL */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:min-h-[600px]">
+                    <div className="bg-white rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] md:min-h-[600px] animate-scale-up">
                         <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                             <h3 className="font-bold text-lg text-gray-800">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
                             <button onClick={resetForm}><X size={24} className="text-gray-400 hover:text-gray-600"/></button>
@@ -1338,14 +1358,14 @@ const ScheduleManager: React.FC<{
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente / Pet</label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                                    <input value={selectedClientData ? selectedClientData.name : clientSearch} onChange={(e) => { setClientSearch(e.target.value); setSelectedClient(''); setSelectedPet(''); }} placeholder="Buscar..." className="w-full pl-9 pr-8 py-2 border rounded-xl outline-none focus:ring-2 ring-brand-200 text-sm" />
-                                    {selectedClientData && <button onClick={() => { setClientSearch(''); setSelectedClient(''); }} className="absolute right-2 top-2 text-gray-400"><X size={16}/></button>}
+                                    <input value={selectedClientData ? selectedClientData.name : clientSearch} onChange={(e) => { setClientSearch(e.target.value); setSelectedClient(''); setSelectedPet(''); }} placeholder="Buscar..." className="w-full pl-9 pr-8 py-3 border rounded-xl outline-none focus:ring-2 ring-brand-200 text-base" />
+                                    {selectedClientData && <button onClick={() => { setClientSearch(''); setSelectedClient(''); }} className="absolute right-2 top-3 text-gray-400"><X size={16}/></button>}
                                 </div>
                                 {clientSearch.length > 0 && !selectedClient && filteredClients.length > 0 && (
-                                    <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                                    <div className="mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50">
                                         {filteredClients.map(c => (
                                             <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(''); }} className="w-full text-left p-3 hover:bg-gray-50 border-b border-gray-50 flex justify-between items-center">
-                                                <div className="text-sm font-bold text-gray-800">{c.name} <span className="text-xs font-normal text-gray-500">({c.pets.map(p=>p.name).join(', ')})</span></div>
+                                                <div className="text-base font-bold text-gray-800">{c.name} <span className="text-xs font-normal text-gray-500">({c.pets.map(p=>p.name).join(', ')})</span></div>
                                             </button>
                                         ))}
                                     </div>
@@ -1354,39 +1374,40 @@ const ScheduleManager: React.FC<{
                             {selectedClient && (
                                 <div className="grid grid-cols-2 gap-2">
                                     {pets.map(p => (
-                                        <button key={p.id} onClick={() => { setSelectedPet(p.id); setSelectedService(''); }} className={`p-2 rounded-xl border text-left text-xs ${selectedPet === p.id ? 'bg-brand-50 border-brand-500' : 'hover:bg-gray-50'}`}>
-                                            <div className="font-bold">{p.name}</div><div className="text-gray-500">{p.size}</div>
+                                        <button key={p.id} onClick={() => { setSelectedPet(p.id); setSelectedService(''); }} className={`p-3 rounded-xl border text-left text-sm transition-all ${selectedPet === p.id ? 'bg-brand-50 border-brand-500 shadow-sm ring-1 ring-brand-200' : 'hover:bg-gray-50'}`}>
+                                            <div className="font-bold">{p.name}</div><div className="text-gray-500 text-xs">{p.size}</div>
                                         </button>
                                     ))}
                                 </div>
                             )}
                             {selectedPet && (
-                                <div className="space-y-3">
-                                    <select value={selectedService} onChange={e => setSelectedService(e.target.value)} className="w-full border p-2 rounded-xl bg-white text-sm"><option value="">Serviço Principal...</option>{getApplicableServices('principal').map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)}</select>
-                                    <div className="flex flex-wrap gap-2">
+                                <div className="space-y-4">
+                                    <div className="space-y-1">
+                                         <label className="text-xs font-bold text-gray-400 uppercase">Serviço Principal</label>
+                                         <select value={selectedService} onChange={e => setSelectedService(e.target.value)} className="w-full border p-3 rounded-xl bg-white text-base outline-none focus:border-brand-500"><option value="">Selecione...</option>{getApplicableServices('principal').map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)}</select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">Adicionais</label>
                                         <select 
-                                            className="flex-1 border p-2 rounded-xl bg-white text-sm" 
+                                            className="w-full border p-3 rounded-xl bg-white text-base outline-none focus:border-brand-500" 
                                             onChange={(e) => { const val = e.target.value; if(val && !selectedAddServices.includes(val)) setSelectedAddServices(prev => [...prev, val]); e.target.value = ''; }}
                                         >
-                                            <option value="">Serviço Adicional...</option>
+                                            <option value="">Adicionar serviço...</option>
                                             {getApplicableServices('adicional')
-                                                // Filtrar duplicatas pelo nome para limpar a lista
-                                                .filter((service, index, self) => 
-                                                    index === self.findIndex((t) => t.name === service.name)
-                                                )
+                                                .filter((service, index, self) => index === self.findIndex((t) => t.name === service.name))
                                                 .map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)
                                             }
                                         </select>
                                     </div>
-                                    <div className="flex flex-wrap gap-1">{selectedAddServices.map(id => <span key={id} onClick={() => setSelectedAddServices(p => p.filter(x => x !== id))} className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-bold cursor-pointer">{services.find(s=>s.id===id)?.name} ×</span>)}</div>
-                                    <div className="grid grid-cols-2 gap-3"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="border p-2 rounded-xl text-sm" /><select value={time} onChange={e => setTime(e.target.value)} className="border p-2 rounded-xl text-sm">{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
-                                    <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full border p-2 rounded-xl text-sm" rows={2} placeholder="Obs..." />
+                                    <div className="flex flex-wrap gap-2 min-h-[30px]">{selectedAddServices.map(id => <span key={id} onClick={() => setSelectedAddServices(p => p.filter(x => x !== id))} className="bg-purple-50 border border-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-bold cursor-pointer hover:bg-purple-100 flex items-center gap-1">{services.find(s=>s.id===id)?.name} <X size={12}/></span>)}</div>
+                                    <div className="grid grid-cols-2 gap-3"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="border p-3 rounded-xl text-base outline-none" /><select value={time} onChange={e => setTime(e.target.value)} className="border p-3 rounded-xl text-base outline-none">{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+                                    <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full border p-3 rounded-xl text-sm outline-none focus:border-gray-400" rows={3} placeholder="Observações..." />
                                 </div>
                             )}
                         </div>
                         <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
-                            <button onClick={resetForm} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-200 rounded-lg text-sm">Cancelar</button>
-                            <button onClick={handleSave} disabled={!selectedClient || !selectedPet || !selectedService} className="px-6 py-2 bg-brand-600 text-white font-bold rounded-lg hover:bg-brand-700 disabled:opacity-50 text-sm">Salvar</button>
+                            <button onClick={resetForm} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-200 rounded-xl text-sm transition">Cancelar</button>
+                            <button onClick={handleSave} disabled={!selectedClient || !selectedPet || !selectedService} className="px-8 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 text-sm shadow-lg shadow-brand-200 active:scale-95 transition">Salvar</button>
                         </div>
                     </div>
                 </div>
