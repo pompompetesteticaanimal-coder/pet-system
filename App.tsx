@@ -535,19 +535,17 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     const getApplicableServices = (category: 'principal' | 'adicional') => { if (!selectedPetData) return []; return services.filter(s => { const matchesCategory = s.category === category; const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase())); const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase())); return matchesCategory && matchesSize && matchesCoat; }); };
     const navigate = (direction: 'prev' | 'next') => { const newDate = new Date(currentDate); if (viewMode === 'day') newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1)); if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7)); if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1)); setCurrentDate(newDate); };
     
-    // Configurações de altura e grade
-    const PIXELS_PER_MINUTE = 1.5; 
+    // Configurações de grade
     const START_HOUR = 9;
     const END_HOUR = 18;
-    const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60;
-    const TOTAL_HEIGHT = TOTAL_MINUTES * PIXELS_PER_MINUTE;
-
+    
+    // 10-minute slots
     const timeSlots = [];
     for(let h=START_HOUR; h < END_HOUR; h++) {
         [0, 10, 20, 30, 40, 50].forEach(m => timeSlots.push({ h, m, label: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}` }));
     }
 
-    const AppointmentCard = ({ app, style, onClick }: { app: Appointment, style?: React.CSSProperties, onClick?: () => void }) => { 
+    const AppointmentCard = ({ app, onClick }: { app: Appointment, onClick?: () => void }) => { 
         const client = clients.find(c => c.id === app.clientId); 
         const pet = client?.pets.find(p => p.id === app.petId); 
         const mainSvc = services.find(srv => srv.id === app.serviceId); 
@@ -562,8 +560,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         
         return ( 
             <div 
-                className={`absolute w-[95%] rounded-lg p-1.5 border shadow-sm ${colorClass} z-20 cursor-pointer select-none hover:opacity-90 active:scale-95 transition-all overflow-hidden flex flex-col justify-start`} 
-                style={style}
+                className={`w-full rounded-lg p-2 border shadow-sm ${colorClass} cursor-pointer hover:opacity-90 active:scale-95 transition-all overflow-hidden flex flex-col justify-start mb-1 min-h-fit`} 
                 onClick={(e) => { e.stopPropagation(); setDetailsApp(app); }} 
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, appId: app.id }); }} 
             > 
@@ -573,7 +570,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                     {mainSvc && <span className="text-[8px] bg-white/40 px-1 rounded-sm leading-tight">{mainSvc.name}</span>} 
                     {addSvcs.map((s, idx) => ( <span key={idx} className="text-[8px] bg-white/40 px-1 rounded-sm leading-tight">{s.name}</span> ))} 
                 </div> 
-                <div className="absolute bottom-1 right-1 text-[8px] font-mono opacity-60">⏱{app.durationTotal || 60}m</div>
+                <div className="text-[8px] font-mono opacity-60 mt-1">⏱{app.durationTotal || 60}m</div>
             </div> 
         ) 
     }
@@ -592,18 +589,17 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         return ( 
             <div className="flex flex-col h-full bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"> 
                 {/* Header */}
-                <div className="flex border-b border-gray-200 bg-gray-50"> 
-                    <div className="w-10 md:w-16 flex-shrink-0 border-r border-gray-200"></div> 
+                <div className="flex border-b border-gray-200 bg-gray-50 pl-12 md:pl-16"> 
                     {daysIndices.map((dayIdx) => { const d = new Date(startOfWeek); d.setDate(d.getDate() + dayIdx); const isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]; return ( <div key={dayIdx} className={`flex-1 text-center py-2 border-r border-gray-200 last:border-0 ${isToday ? 'bg-blue-50/50' : ''}`}> <div className={`text-[10px] font-bold uppercase tracking-wide ${isToday ? 'text-brand-600' : 'text-gray-500'}`}>{d.toLocaleDateString('pt-BR', {weekday: 'short'})}</div> <div className={`text-sm font-bold w-7 h-7 mx-auto rounded-full flex items-center justify-center mt-1 ${isToday ? 'bg-brand-600 text-white shadow' : 'text-gray-700'}`}>{d.getDate()}</div> </div> ) })} 
                 </div> 
                 
-                {/* Body - Absolute Positioning Grid */}
+                {/* Body - Vertical Stack Layout */}
                 <div className="flex-1 overflow-y-auto relative custom-scrollbar flex" onClick={() => setContextMenu(null)}> 
-                    {/* Time Labels Column */}
-                    <div className="w-10 md:w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50" style={{height: TOTAL_HEIGHT}}>
+                    {/* Sticky Time Column */}
+                    <div className="w-12 md:w-16 flex-shrink-0 border-r border-gray-200 bg-gray-50 sticky left-0 z-30 shadow-md">
                          {timeSlots.map(slot => (
-                             <div key={slot.label} className="absolute w-full text-right pr-1 text-[10px] text-gray-400 font-mono" style={{top: ((slot.h - START_HOUR) * 60 + slot.m) * PIXELS_PER_MINUTE - 6}}>
-                                 {slot.m === 0 ? slot.label : '-'}
+                             <div key={slot.label} className="h-auto min-h-[40px] border-b border-gray-100 text-right pr-2 py-1 text-[10px] text-gray-500 font-mono font-bold">
+                                 {slot.m === 0 ? slot.label : ''}
                              </div>
                          ))}
                     </div>
@@ -612,36 +608,31 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                     {daysIndices.map(dayIdx => {
                         const d = new Date(startOfWeek); d.setDate(d.getDate() + dayIdx);
                         const dateStr = d.toISOString().split('T')[0];
-                        const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
 
                         return (
-                            <div key={dayIdx} className="flex-1 border-r border-gray-100 last:border-0 relative hover:bg-gray-50/30 transition-colors" style={{height: TOTAL_HEIGHT}}>
-                                {/* Grid Lines Background */}
-                                {timeSlots.map((slot, i) => (
-                                    <div 
-                                        key={i} 
-                                        className={`absolute w-full border-b ${slot.m === 0 ? 'border-gray-200' : 'border-gray-50'}`} 
-                                        style={{ top: ((slot.h - START_HOUR) * 60 + slot.m) * PIXELS_PER_MINUTE, height: 10 * PIXELS_PER_MINUTE }}
-                                        onClick={() => { setDate(dateStr); setTime(slot.label); setIsModalOpen(true); }}
-                                    />
-                                ))}
+                            <div key={dayIdx} className="flex-1 border-r border-gray-100 last:border-0 min-w-[120px]">
+                                {timeSlots.map((slot, i) => {
+                                    // Find appointments starting exactly at this slot
+                                    const slotApps = appointments.filter(a => {
+                                        if (a.date.startsWith(dateStr) && a.status !== 'cancelado') {
+                                            const aDate = new Date(a.date);
+                                            return aDate.getHours() === slot.h && aDate.getMinutes() === slot.m;
+                                        }
+                                        return false;
+                                    });
 
-                                {/* Appointments Layer */}
-                                {dayApps.map(app => {
-                                    const appDate = new Date(app.date);
-                                    const startMinutes = (appDate.getHours() - START_HOUR) * 60 + appDate.getMinutes();
-                                    const duration = app.durationTotal || 60;
                                     return (
-                                        <AppointmentCard 
-                                            key={app.id} 
-                                            app={app} 
-                                            style={{
-                                                top: startMinutes * PIXELS_PER_MINUTE,
-                                                height: duration * PIXELS_PER_MINUTE,
-                                                left: '2.5%'
-                                            }}
-                                        />
-                                    );
+                                        <div 
+                                            key={i} 
+                                            className={`w-full border-b ${slot.m === 0 ? 'border-gray-200' : 'border-gray-50'} min-h-[40px] p-0.5 relative group hover:bg-gray-50/50 transition-colors`}
+                                            onClick={() => { setDate(dateStr); setTime(slot.label); setIsModalOpen(true); }}
+                                        >
+                                            {/* Render stacked cards */}
+                                            {slotApps.map(app => (
+                                                <AppointmentCard key={app.id} app={app} />
+                                            ))}
+                                        </div>
+                                    )
                                 })}
                             </div>
                         )
