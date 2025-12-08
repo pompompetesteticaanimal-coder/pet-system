@@ -463,23 +463,28 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     const navigate = (direction: 'prev' | 'next') => { const newDate = new Date(currentDate); if (viewMode === 'day') newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1)); if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7)); if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1)); setCurrentDate(newDate); };
     const timeOptions = []; for (let h = 9; h <= 18; h++) { ['00', '10', '20', '30', '40', '50'].forEach(m => { if(h === 18 && m !== '00') return; timeOptions.push(`${String(h).padStart(2, '0')}:${m}`); }); }
     
-    // --- SMART OVERLAP LOGIC (Stacking) ---
+    // --- VERTICAL CASCADING LOGIC (Stack of Cards) ---
+    // Instead of splitting width, we keep full width but indent slightly
     const getLayout = (dayApps: Appointment[]) => {
         const sorted = [...dayApps].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const columns: Appointment[][] = [];
+        const layers: { app: Appointment, indent: number }[] = [];
+
         sorted.forEach(app => {
-            const conflictingCols = columns.filter(col => {
-                return col.some(existingApp => {
-                    const existingStart = new Date(existingApp.date).getTime();
-                    const existingEnd = existingStart + (existingApp.durationTotal || 60) * 60000;
-                    const currentStart = new Date(app.date).getTime();
-                    const currentEnd = currentStart + (app.durationTotal || 60) * 60000;
-                    return (currentStart < existingEnd && currentEnd > existingStart);
-                });
+            const appStart = new Date(app.date).getTime();
+            const appEnd = appStart + (app.durationTotal || 60) * 60000;
+            
+            // Find overlaps
+            const overlapping = layers.filter(layer => {
+                const existingStart = new Date(layer.app.date).getTime();
+                const existingEnd = existingStart + (layer.app.durationTotal || 60) * 60000;
+                return (appStart < existingEnd && appEnd > existingStart);
             });
-            if (conflictingCols.length > 0) { conflictingCols[0].push(app); } else { columns.push([app]); }
+
+            // Indent based on how many overlap
+            const indent = overlapping.length; 
+            layers.push({ app, indent });
         });
-        return columns; 
+        return layers;
     };
 
     const AppointmentCard = ({ app, style, onClick, onContext }: any) => {
@@ -487,7 +492,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         return (
             <div
                 style={style}
-                className={`absolute rounded-lg p-1.5 border shadow-sm ${colorClass} text-xs cursor-pointer hover:brightness-95 hover:z-50 transition-all overflow-hidden flex flex-col leading-tight group`}
+                className={`absolute rounded-lg p-1.5 border shadow-sm ${colorClass} text-xs cursor-pointer hover:brightness-95 transition-all overflow-hidden flex flex-col leading-tight group hover:z-[100]`}
                 onClick={(e) => { e.stopPropagation(); onClick(app); }}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContext(e, app.id); }}
             >
@@ -502,7 +507,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     const renderDayView = () => {
         const dateStr = currentDate.toISOString().split('T')[0];
         const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado');
-        const columns = getLayout(dayApps);
+        const layers = getLayout(dayApps);
         
         return (
             <div className="relative h-[1200px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex">
@@ -515,12 +520,19 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                 </div>
                 <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,#f3f4f6_120px)]">
                      {Array.from({length: 60}, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{top: i * 20}} />)}
-                    {columns.map((col) => (
-                        col.map((app, idx) => {
-                            const d = new Date(app.date); const startMin = (d.getHours() - 9) * 60 + d.getMinutes(); const duration = app.durationTotal || 60; const left = idx * 10; const width = `calc(100% - ${left}px)`;
-                            return ( <AppointmentCard key={app.id} app={app} style={{ top: `${startMin * 2}px`, height: `${duration * 2}px`, left: `${left}px`, width: width, zIndex: idx + 1 }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({x: e.clientX, y: e.clientY, appId: id})} /> );
-                        })
-                    ))}
+                    {layers.map((layer, idx) => {
+                        const app = layer.app;
+                        const d = new Date(app.date); 
+                        const startMin = (d.getHours() - 9) * 60 + d.getMinutes(); 
+                        const duration = app.durationTotal || 60; 
+                        
+                        // STACKING LOGIC
+                        // Shift right by 15px for each overlap level
+                        const left = layer.indent * 15; 
+                        const width = `calc(100% - ${left}px)`;
+
+                        return ( <AppointmentCard key={app.id} app={app} style={{ top: `${startMin * 2}px`, height: `${duration * 2}px`, left: `${left}px`, width: width, zIndex: layer.indent + 1 }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({x: e.clientX, y: e.clientY, appId: id})} /> );
+                    })}
                 </div>
             </div>
         );
@@ -537,7 +549,30 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                 </div>
                 <div className="flex-1 overflow-y-auto relative flex">
                      <div className="w-10 bg-gray-50 border-r border-gray-200 flex-shrink-0 sticky left-0 z-10"> {Array.from({length: 10}, (_, i) => i + 9).map(h => ( <div key={h} className="h-[120px] border-b border-gray-200 text-[9px] text-gray-400 font-bold p-1 text-right relative bg-gray-50"> <span className="-top-2 relative">{h}:00</span> </div> ))} </div>
-                     {days.map(dIdx => { const d = new Date(start); d.setDate(d.getDate() + dIdx); const dateStr = d.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const columns = getLayout(dayApps); return ( <div key={dIdx} className="flex-1 border-r border-gray-100 relative min-w-[60px]"> {Array.from({length: 60}, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{top: i * 20}} />)} {columns.map((col) => ( col.map((app, idx) => { const ad = new Date(app.date); const startMin = (ad.getHours() - 9) * 60 + ad.getMinutes(); const duration = app.durationTotal || 60; const left = idx * 5; const width = `calc(100% - ${left}px)`; return ( <AppointmentCard key={app.id} app={app} style={{ top: `${startMin * 2}px`, height: `${duration * 2}px`, left: `${left}px`, width: width, zIndex: idx+1 }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({x: e.clientX, y: e.clientY, appId: id})} /> ) }) ))} </div> ) })}
+                     {days.map(dIdx => { 
+                         const d = new Date(start); 
+                         d.setDate(d.getDate() + dIdx); 
+                         const dateStr = d.toISOString().split('T')[0]; 
+                         const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); 
+                         const layers = getLayout(dayApps); 
+                         
+                         return ( 
+                            <div key={dIdx} className="flex-1 border-r border-gray-100 relative min-w-[60px]"> 
+                                {Array.from({length: 60}, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{top: i * 20}} />)} 
+                                {layers.map((layer, idx) => { 
+                                    const app = layer.app;
+                                    const ad = new Date(app.date); 
+                                    const startMin = (ad.getHours() - 9) * 60 + ad.getMinutes(); 
+                                    const duration = app.durationTotal || 60; 
+                                    
+                                    const left = layer.indent * 5; // Smaller indent for week view
+                                    const width = `calc(100% - ${left}px)`; 
+                                    
+                                    return ( <AppointmentCard key={app.id} app={app} style={{ top: `${startMin * 2}px`, height: `${duration * 2}px`, left: `${left}px`, width: width, zIndex: layer.indent+1 }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({x: e.clientX, y: e.clientY, appId: id})} /> ) 
+                                })} 
+                            </div> 
+                        ) 
+                    })}
                 </div>
              </div>
         )
