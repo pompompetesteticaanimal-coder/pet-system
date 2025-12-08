@@ -80,13 +80,6 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void }> = ({ o
                     <div className="bg-white p-1 rounded-full"><LogIn className="text-brand-600 group-hover:scale-110 transition-transform" /></div>
                     Entrar com Google
                 </button>
-
-                {isTemporaryLink && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-left text-xs text-orange-800 mb-4">
-                        <p className="font-bold mb-1 flex items-center gap-1"><AlertTriangle size={14}/> Atenção: Link Temporário</p>
-                        <p>Você está acessando por um link temporário. Recomenda-se usar o link principal do projeto para evitar erros de login.</p>
-                    </div>
-                )}
                 
                 <button onClick={onReset} className="mt-8 text-xs text-gray-400 hover:text-red-500 underline">
                     Alterar ID do Cliente
@@ -408,7 +401,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
     const calculateExpected = (app: Appointment) => { const main = services.find(s => s.id === app.serviceId); let total = main?.price || 0; app.additionalServiceIds?.forEach(id => { const s = services.find(srv => srv.id === id); if(s) total += s.price; }); return total; };
     const handleStartEdit = (app: Appointment) => { setEditingId(app.id); const expected = calculateExpected(app); setAmount(app.paidAmount ? app.paidAmount.toString() : expected.toString()); setMethod(app.paymentMethod || 'Credito'); setContextMenu(null); };
     
-    // CORREÇÃO AQUI: Mudança para Q e R
+    // CORREÇÃO: Gravação nas colunas Q (16) e R (17) da planilha
     const handleSave = async (app: Appointment) => { 
         setIsSaving(true); 
         const finalAmount = parseFloat(amount); 
@@ -417,7 +410,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
             try { 
                 const parts = app.id.split('_'); 
                 const index = parseInt(parts[1]); 
-                const rowNumber = index + 5; // Mantém offset 5
+                const rowNumber = index + 5; // Offset 5
                 // Coluna Q (Valor) e R (Pagamento)
                 const range = `Agendamento!Q${rowNumber}:R${rowNumber}`; 
                 const values = [finalAmount.toString().replace('.', ','), method]; 
@@ -825,6 +818,7 @@ const App: React.FC = () => {
   const handleSyncAppointments = async (token: string, silent = false) => {
       if (!token || !SHEET_ID) return;
       try {
+          // CORREÇÃO: Leitura até Coluna S (índice 18)
           const rows = await googleService.getSheetValues(token, SHEET_ID, 'Agendamento!A:S');
           if(!rows || rows.length < 5) { if(!silent) alert('Aba Agendamento vazia ou não encontrada (Linhas 1-4 ignoradas).'); return; }
           const loadedApps: Appointment[] = []; const newTempClients: Client[] = []; const currentClients = db.getClients(); const existingClientIds = new Set(currentClients.map(c => c.id));
@@ -833,9 +827,10 @@ const App: React.FC = () => {
               if (idx < 4) return;
               
               const petName = row[0]; const clientName = row[1]; const clientPhone = row[2] || ''; const clientAddr = row[3] || ''; const petBreed = row[4]; const datePart = row[11]; const timePart = row[12]; const serviceName = row[7];
-              // CORREÇÃO AQUI: Índice 16 para Valor, 17 para Pagamento
+              // Col Q (16) = Valor, Col R (17) = Pagamento
               const paidAmountStr = row[16]; 
               const paymentMethod = row[17];
+
               if(!clientName || !datePart) return;
               let isoDate = new Date().toISOString();
               try { const [day, month, year] = datePart.split('/'); if(day && month && year) isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`; } catch(e){}
@@ -871,32 +866,32 @@ const App: React.FC = () => {
         if (googleResponse && googleResponse.id) { googleEventId = googleResponse.id; }
         const dateObj = new Date(app.date); const dateStr = dateObj.toLocaleDateString('pt-BR'); const timeStr = dateObj.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
         
-        // CORREÇÃO AQUI: Array termina em R (índice 17), Q (Valor) e R (Pagamento)
+        // CORREÇÃO: Array de gravação até Coluna R
         const rowData = [ 
-            pet.name, 
-            client.name, 
-            client.phone, 
-            `${client.address} ${client.complement || ''}`.trim(), 
-            pet.breed, 
-            pet.size, 
-            pet.coat, 
-            appServices[0]?.name || '', 
-            appServices[1]?.name || '', 
-            appServices[2]?.name || '', 
-            appServices[3]?.name || '', 
-            dateStr, 
-            timeStr, 
-            app.notes || '', 
-            totalDuration,
-            'Agendado', // Col P (Status)
-            '', // Col Q (Valor)
-            ''  // Col R (Payment)
+            pet.name, // A
+            client.name, // B
+            client.phone, // C
+            `${client.address} ${client.complement || ''}`.trim(), // D
+            pet.breed, // E
+            pet.size, // F
+            pet.coat, // G
+            appServices[0]?.name || '', // H
+            appServices[1]?.name || '', // I
+            appServices[2]?.name || '', // J
+            appServices[3]?.name || '', // K
+            dateStr, // L
+            timeStr, // M
+            app.notes || '', // N
+            totalDuration, // O
+            'Agendado', // P (Status)
+            '', // Q (Valor) - Inicialmente vazio
+            ''  // R (Pagamento) - Inicialmente vazio
         ];
-        try { await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:S', rowData); alert('Agendamento salvo no Calendar e na Planilha!'); } catch (e) { alert('Erro ao salvar na planilha (verifique permissões). Salvo apenas localmente e no Calendar.'); }
+        try { await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:R', rowData); alert('Agendamento salvo no Calendar e na Planilha!'); } catch (e) { alert('Erro ao salvar na planilha (verifique permissões). Salvo apenas localmente e no Calendar.'); }
     }
     const newApp = { ...app, googleEventId, durationTotal: totalDuration }; const updated = [...appointments, newApp]; setAppointments(updated); db.saveAppointments(updated);
-    // Force sync to get Sheet ID
-    setTimeout(() => performFullSync(accessToken!), 1000);
+    // Force sync to get Sheet ID for newly created appointment (critical for payment)
+    setTimeout(() => performFullSync(accessToken!), 1500);
   }
 
   const handleEditAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
@@ -915,14 +910,15 @@ const App: React.FC = () => {
     }
     if (accessToken && app.id.startsWith('sheet_')) {
         const parts = app.id.split('_'); const index = parseInt(parts[1]); 
-        const rowNumber = index + 5; // Offset 5
+        const rowNumber = index + 5; // CORREÇÃO: Offset 5 (Linha 5 é dados)
+        // Intervalo A:R para atualizar tudo
         const range = `Agendamento!A${rowNumber}:R${rowNumber}`; 
         const dateObj = new Date(app.date); const dateStr = dateObj.toLocaleDateString('pt-BR'); const timeStr = dateObj.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
         
+        // Mantém pagamento existente se houver
         const currentPaidAmount = app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '';
         const currentPaymentMethod = app.paymentMethod || '';
 
-        // CORREÇÃO AQUI: Mapeamento Q e R
         const rowData = [ 
             pet.name, 
             client.name, 
@@ -939,9 +935,9 @@ const App: React.FC = () => {
             timeStr, 
             app.notes || '', 
             totalDuration,
-            'Agendado', // Col P
-            currentPaidAmount, // Col Q
-            currentPaymentMethod // Col R
+            'Agendado', 
+            currentPaidAmount, // Q
+            currentPaymentMethod // R
         ];
         try { await googleService.updateSheetValues(accessToken, SHEET_ID, range, rowData); } catch(e) { console.error("Update sheet failed", e); }
     }
@@ -962,7 +958,7 @@ const App: React.FC = () => {
          if (appToDelete.id.startsWith('sheet_')) {
              try {
                  const idx = parseInt(appToDelete.id.split('_')[1]);
-                 const row = idx + 5; // Offset 5
+                 const row = idx + 5; // CORREÇÃO: Offset 5
                  await googleService.clearSheetValues(accessToken, SHEET_ID, `Agendamento!A${row}:S${row}`);
              } catch (e) { console.error("Failed to clear row from Sheet", e); }
          }
