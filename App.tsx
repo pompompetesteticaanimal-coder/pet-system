@@ -1327,17 +1327,17 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
 
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 bg-black/60 z-[60] flex items-end md:items-center justify-center md:p-6 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-[#ffffff] md:rounded-3xl rounded-t-3xl w-full max-w-6xl h-[95vh] md:h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-scale-up ring-1 ring-black/5 font-sans">
+                    <div className="bg-[#ffffff] md:rounded-3xl rounded-none w-full max-w-6xl h-[100dvh] md:h-[90vh] md:max-h-[800px] shadow-2xl flex flex-col overflow-hidden animate-scale-up ring-1 ring-black/5 font-sans">
                         {/* Header */}
-                        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
+                        <div className="px-5 py-4 md:px-8 md:py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
                             <div>
-                                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
-                                <p className="text-sm text-gray-400 font-medium mt-1">Preencha os detalhes do serviço abaixo</p>
+                                <h2 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
+                                <p className="text-xs md:text-sm text-gray-400 font-medium mt-0.5">Preencha os detalhes do serviço abaixo</p>
                             </div>
                             <button onClick={resetForm} className="p-2.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all duration-300"><X size={24} /></button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-gray-50/50">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 bg-gray-50/50">
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto h-full">
 
                                 {/* LEFT COLUMN: Client & Pet (40%) */}
