@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ViewState, GoogleUser, AppSettings } from '../types';
 import { LayoutDashboard, Users, Calendar, Scissors, LogIn, LogOut, Wallet, ChevronLeft, TrendingUp, TrendingDown, Lock, Settings, Home, Menu, BarChart2 } from 'lucide-react';
+import { PullToRefresh } from './PullToRefresh';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -108,6 +109,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
 
   const order = settings?.sidebarOrder || ['operacional', 'cadastros', 'gerencial'];
 
+  const handleRefresh = async () => {
+    // Simulate a short delay for visual feedback before reloading
+    await new Promise(resolve => setTimeout(resolve, 800));
+    window.location.reload();
+  };
+
   return (
     <div className="flex h-screen bg-ios-bg overflow-hidden relative selection:bg-brand-100 selection:text-brand-900">
 
@@ -161,14 +168,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         </div>
       </aside>
 
+
+
+      // ...
+
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 pointer-events-none" />
-        <div className="flex-1 overflow-auto p-4 md:p-8 pb-28 md:pb-8 no-scrollbar scroll-smooth">
+        <PullToRefresh
+          onRefresh={handleRefresh}
+          className="flex-1 p-4 md:p-8 pb-28 md:pb-8 no-scrollbar scroll-smooth"
+        >
           <div className="max-w-7xl mx-auto w-full">
             {children}
           </div>
-        </div>
+        </PullToRefresh>
       </main>
 
       {/* Mobile Floating Tab Bar */}
