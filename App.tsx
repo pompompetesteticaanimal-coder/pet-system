@@ -1317,111 +1317,260 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
             })(), document.body)}
 
             {isModalOpen && createPortal(
-                <div className="fixed inset-0 bg-black/50 z-[60] flex items-end md:items-center justify-center md:p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-t-3xl md:rounded-2xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col h-[95vh] md:h-auto md:max-h-[90vh] md:min-h-[600px] animate-slide-up-mobile md:animate-scale-up">
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-end md:items-center justify-center md:p-6 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-[#ffffff] md:rounded-3xl rounded-t-3xl w-full max-w-6xl h-[95vh] md:h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-scale-up ring-1 ring-black/5 font-sans">
                         {/* Header */}
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white z-10 sticky top-0">
+                        <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
                             <div>
-                                <h2 className="text-xl font-bold text-gray-800">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
-                                <p className="text-xs text-gray-500 font-medium mt-0.5">Preencha os dados do serviço</p>
+                                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
+                                <p className="text-sm text-gray-400 font-medium mt-1">Preencha os detalhes do serviço abaixo</p>
                             </div>
-                            <button onClick={resetForm} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition"><X size={20} /></button>
+                            <button onClick={resetForm} className="p-2.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all duration-300"><X size={24} /></button>
                         </div>
 
-                        <div className="p-4 overflow-y-auto custom-scrollbar space-y-4 pb-24 md:pb-4">
-                            {/* Client/Pet Selection */}
-                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative group hover:border-brand-200 transition-colors">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-brand-500 rounded-l-2xl"></div>
-                                <div className="flex items-center gap-2 mb-3"><User size={18} className="text-brand-600" /><span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Cliente e Pet</span></div>
-                                <div className="space-y-3 pl-2">
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Cliente</label>
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                            <input type="text" placeholder="Buscar cliente..." value={clientSearch} onChange={e => { setClientSearch(e.target.value); setSelectedClient(null); setSelectedPet(null); }} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-xl text-sm outline-none transition-all font-medium placeholder:text-gray-400" />
-                                            {clientSearch && !selectedClient && (
-                                                <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-xl mt-2 z-20 border border-gray-100 max-h-48 overflow-y-auto custom-scrollbar">
-                                                    {filteredClients.map(c => (
-                                                        <div key={c.id} onClick={() => { setSelectedClient(c); setClientSearch(c.name); }} className="w-full text-left p-3 hover:bg-gray-50 cursor-pointer text-sm font-medium text-gray-700 border-b border-gray-50 last:border-0 flex items-center justify-between group">
-                                                            <span>{c.name}</span>
-                                                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md group-hover:bg-white transition-colors">{c.phone}</span>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-gray-50/50">
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto h-full">
+
+                                {/* LEFT COLUMN: Client & Pet (40%) */}
+                                <div className="lg:col-span-5 space-y-6 flex flex-col h-full">
+                                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/80 flex-1 flex flex-col">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="w-10 h-10 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center"><User size={20} /></div>
+                                            <h3 className="text-lg font-bold text-gray-800">Cliente & Pet</h3>
+                                        </div>
+
+                                        <div className="space-y-6 flex-1">
+                                            {/* Client Search */}
+                                            <div className="relative group z-30">
+                                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block ml-1">Buscar Cliente</label>
+                                                <div className="relative">
+                                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors" size={18} />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Nome, telefone ou pet..."
+                                                        value={clientSearch}
+                                                        onChange={e => { setClientSearch(e.target.value); setSelectedClient(null); setSelectedPet(null); }}
+                                                        className="w-full pl-11 pr-4 py-3.5 bg-gray-50 hover:bg-white focus:bg-white border border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl text-sm font-semibold text-gray-700 outline-none transition-all placeholder:font-normal placeholder:text-gray-400"
+                                                    />
+                                                </div>
+
+                                                {/* Dropdown Results */}
+                                                {clientSearch && !selectedClient && (
+                                                    <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-2xl mt-2 border border-gray-100 max-h-64 overflow-y-auto custom-scrollbar animate-slide-up-sm">
+                                                        {filteredClients.length > 0 ? (
+                                                            filteredClients.map(c => (
+                                                                <div key={c.id} onClick={() => { setSelectedClient(c); setClientSearch(c.name); }} className="p-4 hover:bg-brand-50/30 cursor-pointer border-b border-gray-50 last:border-0 transition-colors group/item">
+                                                                    <div className="flex justify-between items-center mb-1">
+                                                                        <span className="font-bold text-gray-800 group-hover/item:text-brand-700 transition-colors">{c.name}</span>
+                                                                        <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">{c.phone}</span>
+                                                                    </div>
+                                                                    <div className="flex gap-2">
+                                                                        {c.pets.slice(0, 3).map(p => (
+                                                                            <span key={p.id} className="text-[10px] bg-gray-50 text-gray-500 border border-gray-100 px-1.5 py-0.5 rounded uppercase tracking-wide font-bold">{p.name}</span>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="p-8 text-center text-gray-400 text-sm font-medium flex flex-col items-center gap-2">
+                                                                <AlertCircle size={24} className="opacity-20" />
+                                                                Nenhum cliente encontrado
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Selected Client Display */}
+                                            {selectedClient && (
+                                                <div className="animate-fade-in space-y-6">
+                                                    <div className="p-4 bg-brand-50/50 rounded-2xl border border-brand-100 flex items-start gap-4">
+                                                        <div className="w-12 h-12 rounded-full bg-white text-brand-600 flex items-center justify-center font-bold text-lg shadow-sm">{selectedClient.name[0]}</div>
+                                                        <div>
+                                                            <h4 className="font-bold text-gray-900">{selectedClient.name}</h4>
+                                                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                                                <Phone size={12} /> {selectedClient.phone}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                                                                <MapPin size={12} /> {selectedClient.address || 'Sem endereço'}
+                                                            </div>
                                                         </div>
-                                                    ))}
-                                                    {filteredClients.length === 0 && (
-                                                        <div className="p-4 text-center text-gray-500 text-sm">Nenhum cliente encontrado</div>
-                                                    )}
+                                                        <button onClick={() => { setSelectedClient(null); setSelectedPet(null); setClientSearch(''); }} className="ml-auto text-gray-400 hover:text-red-500 transition"><X size={16} /></button>
+                                                    </div>
+
+                                                    {/* Pet Selection Grid */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block ml-1">Selecionar Pet</label>
+                                                        <div className="space-y-2">
+                                                            {selectedClient.pets.map(p => (
+                                                                <div
+                                                                    key={p.id}
+                                                                    onClick={() => setSelectedPet(p.id)}
+                                                                    className={`group p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex items-center justify-between ${selectedPet === p.id
+                                                                        ? 'border-brand-500 bg-brand-50 shadow-md transform scale-[1.02]'
+                                                                        : 'border-gray-100 hover:border-brand-200 bg-white hover:bg-gray-50'}`}
+                                                                >
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedPet === p.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-brand-100 group-hover:text-brand-500'}`}>
+                                                                            <PawPrint size={18} />
+                                                                        </div>
+                                                                        <div>
+                                                                            <h5 className={`font-bold text-sm ${selectedPet === p.id ? 'text-brand-900' : 'text-gray-700'}`}>{p.name}</h5>
+                                                                            <p className="text-xs text-gray-500 font-medium">{p.breed} • {p.size || '?'} • {p.coat || '?'}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPet === p.id ? 'border-brand-500 bg-brand-500' : 'border-gray-200'}`}>
+                                                                        {selectedPet === p.id && <Check size={12} className="text-white" strokeWidth={4} />}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                            <button className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 font-bold text-xs hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50/50 transition-all flex items-center justify-center gap-2">
+                                                                <Plus size={16} /> Adicionar Novo Pet
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    {selectedClient && (
-                                        <div className="animate-fade-in">
-                                            <label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Pet</label>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {selectedClient.pets.map(p => (
-                                                    <div key={p.id} onClick={() => setSelectedPet(p.id)} className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 relative overflow-hidden ${selectedPet === p.id ? 'border-brand-500 bg-brand-50/50' : 'border-gray-100 hover:border-brand-200 bg-gray-50/50'}`}>
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${selectedPet === p.id ? 'bg-brand-100 text-brand-600' : 'bg-white text-gray-400'}`}><PawPrint size={16} /></div>
-                                                        <div className="min-w-0"><p className={`text-sm font-bold truncate ${selectedPet === p.id ? 'text-brand-700' : 'text-gray-700'}`}>{p.name}</p><p className="text-[10px] text-gray-500 truncate">{p.breed}</p></div>
-                                                        {selectedPet === p.id && <div className="absolute top-2 right-2 text-brand-500"><CheckCircle size={14} className="fill-brand-500 text-white" /></div>}
-                                                    </div>
-                                                ))}
-                                                <button className="p-3 rounded-xl border-2 border-dashed border-gray-200 hover:border-brand-300 hover:bg-brand-50/30 transition-all flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-brand-600 group"><Plus size={20} className="group-hover:scale-110 transition-transform" /><span className="text-[10px] font-bold uppercase">Novo Pet</span></button>
+                                </div>
+
+                                {/* RIGHT COLUMN: Services & Details (60%) */}
+                                <div className="lg:col-span-7 space-y-6 flex flex-col h-full bg-white rounded-3xl shadow-sm border border-gray-100/80 p-6 relative">
+                                    {!selectedPet && (
+                                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-3xl">
+                                            <div className="text-gray-400 font-medium flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-sm border border-gray-100">
+                                                <ArrowRightLeft size={16} /> Selecione um pet primeiro
                                             </div>
                                         </div>
                                     )}
-                                </div>
-                            </div>
 
-                            {selectedPet && (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group hover:border-purple-200 transition-colors">
-                                        <div className="absolute top-0 left-0 w-1 h-full bg-purple-500 rounded-l-2xl"></div>
-                                        <div className="flex items-center gap-2 mb-3"><Scissors size={18} className="text-purple-600" /><span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Serviços</span></div>
-                                        <div className="space-y-3 pl-2">
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Principal</label>
-                                                <select value={selectedService} onChange={e => setSelectedService(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-transparent focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 rounded-xl text-sm outline-none transition-all font-medium appearance-none cursor-pointer hover:bg-white text-gray-700">
-                                                    <option value="">Selecione um serviço...</option>
-                                                    {getApplicableServices('principal').map(s => (<option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>))}
-                                                </select>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Date & Time */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
+                                                <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><CalendarIcon size={16} /></div>
+                                                <h3>Data e Hora</h3>
                                             </div>
-                                            <div>
-                                                <label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Adicionais</label>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {getApplicableServices('adicional').map(s => (
-                                                        <button key={s.id} onClick={() => setSelectedAddServices(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id])} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedAddServices.includes(s.id) ? 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm' : 'bg-gray-50 text-gray-600 border-gray-100 hover:border-gray-300'}`}>{s.name} (+R${s.price})</button>
-                                                    ))}
+                                            <div className="space-y-3">
+                                                <div className="relative">
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Data</label>
+                                                    <input
+                                                        type="date"
+                                                        value={date}
+                                                        onChange={e => setDate(e.target.value)}
+                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Horário</label>
+                                                    <input
+                                                        type="time"
+                                                        value={time}
+                                                        onChange={e => setTime(e.target.value)}
+                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Duração (min)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={manualDuration}
+                                                        onChange={e => setManualDuration(e.target.value)}
+                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Services */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
+                                                <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg"><Scissors size={16} /></div>
+                                                <h3>Serviços</h3>
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Principal</label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={selectedService}
+                                                            onChange={e => setSelectedService(e.target.value)}
+                                                            className="w-full p-3 pl-4 pr-10 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
+                                                        >
+                                                            <option value="">Selecione...</option>
+                                                            {getApplicableServices('principal').map(s => (<option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>))}
+                                                        </select>
+                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Adicionais</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {getApplicableServices('adicional').map(s => (
+                                                            <button
+                                                                key={s.id}
+                                                                onClick={() => setSelectedAddServices(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id])}
+                                                                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-2 ${selectedAddServices.includes(s.id)
+                                                                    ? 'bg-purple-600 text-white border-purple-600 shadow-md transform scale-105'
+                                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300 hover:bg-purple-50'}`}
+                                                            >
+                                                                {s.name}
+                                                                <span className={`text-[10px] px-1.5 rounded-md ${selectedAddServices.includes(s.id) ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>+R${s.price}</span>
+                                                            </button>
+                                                        ))}
+                                                        {getApplicableServices('adicional').length === 0 && <span className="text-gray-400 text-xs italic">Nenhum adicional disponível</span>}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group hover:border-blue-200 transition-colors">
-                                        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-2xl"></div>
-                                        <div className="flex items-center gap-2 mb-3"><CalendarIcon size={18} className="text-blue-600" /><span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Data e Hora</span></div>
-                                        <div className="grid grid-cols-2 gap-3 pl-2">
-                                            <div><label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Dia</label><input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-transparent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl text-sm outline-none transition-all font-medium text-gray-700" /></div>
-                                            <div><label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Hora</label><input type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-transparent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl text-sm outline-none transition-all font-medium text-gray-700" /></div>
+                                    {/* Notes */}
+                                    <div className="flex-1 flex flex-col">
+                                        <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
+                                            <div className="p-1.5 bg-orange-100 text-orange-600 rounded-lg"><FileText size={16} /></div>
+                                            <h3>Observações</h3>
                                         </div>
-                                        <div className="mt-3 pl-2"><label className="text-xs font-bold text-gray-400 uppercase mb-1.5 block">Duração (min)</label><input type="number" value={manualDuration} onChange={e => setManualDuration(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-transparent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-xl text-sm outline-none transition-all font-medium text-gray-700" /></div>
-                                    </div>
-
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group hover:border-orange-200 transition-colors">
-                                        <div className="absolute top-0 left-0 w-1 h-full bg-orange-500 rounded-l-2xl"></div>
-                                        <div className="flex items-center gap-2 mb-3"><FileText size={18} className="text-orange-600" /><span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Detalhes</span></div>
-                                        <div className="pl-2">
-                                            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full bg-gray-50 hover:bg-white border border-transparent focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-2xl p-4 text-sm outline-none transition-all resize-none font-medium placeholder:text-gray-400 h-28 leading-relaxed" placeholder="Alguma observação, cuidado especial ou pedido do cliente?" />
-                                        </div>
+                                        <textarea
+                                            value={notes}
+                                            onChange={e => setNotes(e.target.value)}
+                                            className="w-full flex-1 bg-yellow-50/50 hover:bg-yellow-50 border border-yellow-100 focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/10 rounded-2xl p-4 text-sm outline-none transition-all resize-none font-medium text-gray-700 placeholder:text-gray-400 leading-relaxed"
+                                            placeholder="Detalhes especiais, alergias, comportamento..."
+                                        />
                                     </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
 
-                        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-white/80 backdrop-blur-xl flex justify-end gap-3 z-20 rounded-t-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] md:static md:bg-transparent md:border-0 md:shadow-none">
-                            <button onClick={resetForm} className="px-6 py-4 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl text-sm transition h-14 w-full md:w-auto">Cancelar</button>
-                            <button onClick={handleSave} disabled={!selectedClient || !selectedPet || !selectedService} className="px-8 py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 disabled:opacity-50 text-sm shadow-xl shadow-brand-200 hover:shadow-brand-300 active:scale-95 transition-all flex items-center justify-center gap-2 h-14 w-full md:w-auto">
-                                <Check size={20} strokeWidth={2.5} /> <span className="md:hidden">Confirmar</span><span className="hidden md:inline">Confirmar Agendamento</span>
-                            </button>
+                        {/* Footer Actions */}
+                        <div className="p-6 border-t border-gray-100 bg-white z-20 flex justify-between items-center">
+                            <div className="hidden md:block">
+                                {selectedService && (
+                                    <div className="text-right">
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Total Estimado</span>
+                                        <span className="text-2xl font-black text-brand-600">
+                                            R$ {(
+                                                (services.find(s => s.id === selectedService)?.price || 0) +
+                                                selectedAddServices.reduce((acc, id) => acc + (services.find(s => s.id === id)?.price || 0), 0)
+                                            ).toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-4 w-full md:w-auto">
+                                <button onClick={resetForm} className="flex-1 md:flex-none px-8 py-4 rounded-xl text-gray-500 font-bold hover:bg-gray-100 transition-colors text-sm">Cancelar</button>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={!selectedClient || !selectedPet || !selectedService}
+                                    className="flex-1 md:flex-none px-10 py-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-brand-200 hover:shadow-brand-300 hover:scale-[1.02] active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                                >
+                                    <Check size={20} strokeWidth={3} />
+                                    Confirmar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>,
