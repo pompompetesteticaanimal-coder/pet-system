@@ -408,7 +408,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
             try {
                 const parts = app.id.split('_');
                 const index = parseInt(parts[1]);
-                const rowNumber = index + 5;
+                const rowNumber = index + 1;
                 const range = `Agendamento!Q${rowNumber}:R${rowNumber}`;
                 const values = [finalAmount.toString().replace('.', ','), method];
                 await googleService.updateSheetValues(accessToken, sheetId, range, values);
@@ -862,7 +862,7 @@ const App: React.FC = () => {
         setAppointments(updatedList); db.saveAppointments(updatedList);
         if (app.id.startsWith('sheet_') && accessToken && SHEET_ID) {
             try {
-                const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 5; // Correct row calculation
+                const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
                 const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                 const mainSvc = appServices[0];
                 const rowData = [
@@ -883,7 +883,7 @@ const App: React.FC = () => {
         setAppointments(updated); db.saveAppointments(updated);
         if (id.startsWith('sheet_') && accessToken && SHEET_ID) {
             try {
-                const parts = id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 5;
+                const parts = id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
                 await googleService.clearSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`);
             } catch (e) { console.error(e); }
         }
