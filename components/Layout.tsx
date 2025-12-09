@@ -170,7 +170,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
 
 
 
-      // ...
+
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
