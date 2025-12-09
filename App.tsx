@@ -1330,7 +1330,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
 
                         <div className="p-4 overflow-y-auto custom-scrollbar space-y-4 pb-24 md:pb-4">
                             {/* Client/Pet Selection */}
-                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group hover:border-brand-200 transition-colors">
+                            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative group hover:border-brand-200 transition-colors">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-brand-500 rounded-l-2xl"></div>
                                 <div className="flex items-center gap-2 mb-3"><User size={18} className="text-brand-600" /><span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Cliente e Pet</span></div>
                                 <div className="space-y-3 pl-2">
