@@ -1519,24 +1519,20 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                             </div>
 
                                             <div className="space-y-4">
-                                                <div>
-                                                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Principal</label>
-                                                    <div className="relative">
-                                                        <select
-                                                            value={selectedService}
-                                                            onChange={e => setSelectedService(e.target.value)}
-                                                            className="w-full p-3 pl-4 pr-10 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
-                                                        >
-                                                            <option value="">Selecione...</option>
-                                                            {getApplicableServices('principal').map(s => (<option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>))}
-                                                        </select>
-                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-                                                    </div>
+                                                <div className="relative">
+                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Serviço Principal</label>
+                                                    <select
+                                                        value={selectedService}
+                                                        onChange={e => setSelectedService(e.target.value)}
+                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
+                                                    >
+                                                        <option value="">Selecione...</option>
+                                                        {getApplicableServices('principal').map(s => (<option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>))}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                                                 </div>
 
                                                 <div>
-                                                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Adicionais</label>
-
                                                     {/* Selected Chips */}
                                                     {selectedAddServices.length > 0 && (
                                                         <div className="flex flex-wrap gap-2 mb-3">
@@ -1556,6 +1552,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
 
                                                     {/* Add Dropdown */}
                                                     <div className="relative">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Adicionar Extra</label>
                                                         <select
                                                             value=""
                                                             onChange={e => {
@@ -1563,9 +1560,9 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                                                     setSelectedAddServices(prev => [...prev, e.target.value]);
                                                                 }
                                                             }}
-                                                            className="w-full p-2.5 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-500 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white hover:border-purple-300 hover:text-purple-600"
+                                                            className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
                                                         >
-                                                            <option value="">+ Adicionar serviço extra...</option>
+                                                            <option value="">Selecione para adicionar...</option>
                                                             {(() => {
                                                                 const available = getApplicableServices('adicional').filter(s => !selectedAddServices.includes(s.id));
                                                                 // Deduplicate by name
