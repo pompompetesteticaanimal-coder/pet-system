@@ -685,45 +685,49 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
                             <div className="flex justify-between items-start mb-4 relative z-10">
                                 <div className="min-w-0 pr-2">
                                     <h3 className="font-bold text-gray-900 truncate text-lg tracking-tight">{client.name}</h3>
-                                    {(() => {
-                                        const cApps = appointments.filter(a => a.clientId === client.id && a.rating);
-                                        if (cApps.length > 0) {
-                                            const avg = cApps.reduce((acc, c) => acc + (c.rating || 0), 0) / cApps.length;
-                                            const allTags = cApps.flatMap(a => a.ratingTags || []);
-                                            const tagCounts: Record<string, number> = {};
-                                            allTags.forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1);
-                                            const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
 
-                                            return (
-                                                <div className="mt-1 mb-1">
-                                                    <div className="flex items-center gap-1 mb-1">
-                                                        <div className="flex text-yellow-400">
-                                                            {[1, 2, 3, 4, 5].map(s => <Star key={s} size={10} className={avg >= s ? "fill-current" : "text-gray-200"} />)}
-                                                        </div>
-                                                        <span className="text-[10px] font-bold text-gray-400">({cApps.length})</span>
-                                                    </div>
-                                                    {topTags.length > 0 && (
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {topTags.map(t => <span key={t} className="text-[9px] bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-100 font-bold">{t}</span>)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
                                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1 font-medium bg-white/50 px-2 py-1 rounded-lg w-fit shadow-sm border border-gray-100/50"><Phone size={12} className="text-brand-400" /> {client.phone}</p>
                                 </div>
                                 <button onClick={() => { if (confirm('Excluir?')) onDeleteClient(client.id); }} className="text-gray-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-xl transition shadow-sm bg-white border border-gray-100"><Trash2 size={16} /></button>
                             </div>
                             <div className="space-y-2 relative z-10">
                                 {client.pets.map(pet => (
-                                    <div key={pet.id} className="bg-white p-3 rounded-2xl flex items-center gap-3 text-sm border border-gray-100 shadow-sm hover:shadow transition group/pet">
-                                        <div className="w-9 h-9 bg-brand-50 text-brand-600 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-xs shadow-inner group-hover/pet:scale-110 transition-transform">{pet.name ? pet.name[0] : '?'}</div>
-                                        <div className="min-w-0 truncate">
-                                            <span className="font-bold text-gray-800 block leading-tight">{pet.name}</span>
-                                            <span className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">{pet.breed}</span>
+                                    <div key={pet.id} className="bg-white p-3 rounded-2xl flex flex-col gap-2 text-sm border border-gray-100 shadow-sm hover:shadow transition group/pet">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 bg-brand-50 text-brand-600 rounded-full flex items-center justify-center font-bold flex-shrink-0 text-xs shadow-inner group-hover/pet:scale-110 transition-transform">{pet.name ? pet.name[0] : '?'}</div>
+                                            <div className="min-w-0 truncate">
+                                                <span className="font-bold text-gray-800 block leading-tight">{pet.name}</span>
+                                                <span className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">{pet.breed}</span>
+                                            </div>
                                         </div>
+                                        {/* Pet Rating Display */}
+                                        {(() => {
+                                            const pApps = appointments.filter(a => a.petId === pet.id && a.rating);
+                                            if (pApps.length > 0) {
+                                                const avg = pApps.reduce((acc, c) => acc + (c.rating || 0), 0) / pApps.length;
+                                                const allTags = pApps.flatMap(a => a.ratingTags || []);
+                                                const tagCounts: Record<string, number> = {};
+                                                allTags.forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1);
+                                                const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+
+                                                return (
+                                                    <div className="pt-2 border-t border-gray-100/50">
+                                                        <div className="flex items-center gap-1 mb-1.5">
+                                                            <div className="flex text-yellow-400">
+                                                                {[1, 2, 3, 4, 5].map(s => <Star key={s} size={10} className={avg >= s ? "fill-current" : "text-gray-200"} />)}
+                                                            </div>
+                                                            <span className="text-[9px] font-bold text-gray-400 bg-gray-50 px-1.5 rounded-full">({pApps.length})</span>
+                                                        </div>
+                                                        {topTags.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {topTags.map(t => <span key={t} className="text-[9px] bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-100 font-bold">{t}</span>)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
                                     </div>
                                 ))}
                             </div>
