@@ -1,5 +1,5 @@
 
-declare var google: any;
+declare let google: any;
 
 // ATENÇÃO: Alterado de .readonly para acesso completo para permitir salvar agendamentos
 const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/spreadsheets';

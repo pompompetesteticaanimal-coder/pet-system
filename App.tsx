@@ -829,7 +829,7 @@ const App: React.FC = () => {
     };
     const handleAddAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
         // ... [Add Appointment Logic same as before] ...
-        let googleEventId = ''; let totalDuration = manualDuration > 0 ? manualDuration : appServices[0].durationMin + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
+        let googleEventId = ''; const totalDuration = manualDuration > 0 ? manualDuration : appServices[0].durationMin + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
         if (accessToken) { const description = appServices.map(s => s.name).join(' + '); const googleResponse = await googleService.createEvent(accessToken, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration }); if (googleResponse) googleEventId = googleResponse.id; }
         const newApp = { ...app, googleEventId, durationTotal: totalDuration };
         const updatedApps = [...appointments, newApp];
@@ -852,7 +852,7 @@ const App: React.FC = () => {
     };
 
     const handleEditAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
-        let googleEventId = app.googleEventId; const totalDuration = manualDuration > 0 ? manualDuration : appServices[0].durationMin + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
+        const googleEventId = app.googleEventId; const totalDuration = manualDuration > 0 ? manualDuration : appServices[0].durationMin + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
         const updatedApp = { ...app, durationTotal: totalDuration };
         if (accessToken && googleEventId) {
             const description = appServices.map(s => s.name).join(' + ');
