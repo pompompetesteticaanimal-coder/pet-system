@@ -22,6 +22,7 @@ import {
 // --- CONSTANTS ---
 const PREDEFINED_SHEET_ID = '1qbb0RoKxFfrdyTCyHd5rJRbLNBPcOEk4Y_ctyy-ujLw';
 const PREDEFINED_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfnUDOsMjn6iho8msiRw9ulfIEghwB1kEU_mrzz4PcSW97V-A/viewform';
+const DEFAULT_LOGO_URL = 'https://photos.fife.usercontent.google.com/pw/AP1GczP9EACBPgVF1S_ZsZH7Shv62wvjBugLa7O8nvkLNpL_d19PsrqTbR4=w249-h220-no?authuser=0';
 
 // --- HELPERS ---
 const formatDateWithWeek = (dateStr: string) => {
@@ -37,7 +38,7 @@ const SetupScreen: React.FC<{ onSave: (id: string) => void }> = ({ onSave }) => 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-lg border border-gray-100 text-center">
-                <div className="w-16 h-16 bg-brand-600 rounded-2xl flex items-center justify-center text-white font-bold text-3xl mx-auto mb-6">P</div>
+                <img src={DEFAULT_LOGO_URL} alt="PomPomPet" className="w-24 h-24 mx-auto mb-6 object-contain" />
                 <h1 className="text-2xl font-bold text-gray-800 mb-2">Configuração Inicial</h1>
                 <p className="text-gray-500 mb-6">ID do Cliente Google (OAuth 2.0)</p>
                 <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="Ex: 1234...apps.googleusercontent.com" className="w-full border p-3 rounded-lg focus:ring-2 ring-brand-500 outline-none font-mono text-sm mb-6" />
@@ -52,7 +53,7 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void; settings
         <div className="min-h-screen bg-brand-50 flex flex-col items-center justify-center p-4">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
                 <div className="w-full flex justify-center mb-6">
-                     {settings?.logoUrl ? <img src={settings.logoUrl} alt="Logo" className="w-48 h-auto object-contain rounded-lg" /> : <img src="/logo.png" alt="PomPomPet" className="w-48 h-auto object-contain" onError={(e) => e.currentTarget.style.display='none'} />}
+                     <img src={settings?.logoUrl || DEFAULT_LOGO_URL} alt="PomPomPet" className="w-48 h-auto object-contain rounded-lg" />
                 </div>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2">{settings?.appName || 'PomPomPet'}</h1>
                 <p className="text-gray-500 mb-8">Faça login para acessar sua agenda e clientes.</p>
@@ -387,7 +388,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
             try { 
                 const parts = app.id.split('_'); 
                 const index = parseInt(parts[1]); 
-                const rowNumber = index + 1; 
+                const rowNumber = index + 5; 
                 const range = `Agendamento!Q${rowNumber}:R${rowNumber}`; 
                 const values = [finalAmount.toString().replace('.', ','), method]; 
                 await googleService.updateSheetValues(accessToken, sheetId, range, values); 
@@ -680,7 +681,7 @@ const App: React.FC = () => {
       setAppointments(updatedList); db.saveAppointments(updatedList);
       if (app.id.startsWith('sheet_') && accessToken && SHEET_ID) {
           try {
-              const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1; // Correct row calculation
+              const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 5; // Correct row calculation
               const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
               const mainSvc = appServices[0];
               const rowData = [
@@ -701,7 +702,7 @@ const App: React.FC = () => {
       setAppointments(updated); db.saveAppointments(updated);
       if (id.startsWith('sheet_') && accessToken && SHEET_ID) {
            try {
-               const parts = id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
+               const parts = id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 5;
                await googleService.clearSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`);
            } catch(e) { console.error(e); }
       }

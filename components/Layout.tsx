@@ -14,6 +14,8 @@ interface LayoutProps {
   onOpenSettings: () => void;
 }
 
+const DEFAULT_LOGO_URL = 'https://photos.fife.usercontent.google.com/pw/AP1GczP9EACBPgVF1S_ZsZH7Shv62wvjBugLa7O8nvkLNpL_d19PsrqTbR4=w249-h220-no?authuser=0';
+
 const NavItem = ({ 
   view, 
   current, 
@@ -111,8 +113,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
       `}>
         <div className="p-6 flex items-center justify-between border-b border-gray-100 h-[72px]">
             <div className="flex items-center space-x-2">
-                 {settings?.logoUrl ? <img src={settings.logoUrl} alt="Logo" className="w-8 h-8 object-contain rounded" /> : <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}/>}
-                <div className="hidden w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">P</div>
+                 <img src={settings?.logoUrl || DEFAULT_LOGO_URL} alt="Logo" className="w-10 h-10 object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}/>
                 <h1 className="text-xl font-bold text-gray-800 truncate">{settings?.appName || 'PomPomPet'}</h1>
             </div>
         </div>
