@@ -7,14 +7,18 @@
 :root {
   --glass-border: 1px solid rgba(255, 255, 255, 0.2);
   --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --safe-area-top: env(safe-area-inset-top);
   --safe-area-bottom: env(safe-area-inset-bottom);
 }
 
 body {
-  background-color: #f2f2f7; /* iOS System Gray 6 */
+  background-color: #f2f2f7;
+  /* iOS System Gray 6 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden; /* Prevent body scroll, use containers */
+  overflow: hidden;
+  /* Prevent body scroll, use containers */
+  padding-top: var(--safe-area-top);
 }
 
 /* Custom Scrollbar for "App" feel */
@@ -22,13 +26,16 @@ body {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.1);
   border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.2);
 }
@@ -50,12 +57,14 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  border-radius: 1.5rem; /* 24px */
+  border-radius: 1.5rem;
+  /* 24px */
 }
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
