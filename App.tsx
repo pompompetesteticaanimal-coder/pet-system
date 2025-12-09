@@ -1105,14 +1105,7 @@ const MenuView: React.FC<{ setView: (v: ViewState) => void, onOpenSettings: () =
                     <ChevronRight className="ml-auto text-gray-300" />
                 </button>
 
-                <button onClick={onOpenSettings} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md group">
-                    <div className="w-16 h-16 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Settings size={32} /></div>
-                    <div className="text-left">
-                        <span className="block text-xl font-bold text-gray-800">Configurações</span>
-                        <span className="text-sm text-gray-400 font-medium">Tema e preferências</span>
-                    </div>
-                    <ChevronRight className="ml-auto text-gray-300" />
-                </button>
+
             </div>
 
             <p className="text-center text-xs text-gray-300 font-medium mt-auto">Versão 1.2.0 • PetGestor AI</p>
