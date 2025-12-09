@@ -38,12 +38,14 @@ export interface Appointment {
   serviceId: string; // Serviço Principal
   additionalServiceIds?: string[]; // Serviços Adicionais (até 3)
   date: string; // ISO String
-  status: 'agendado' | 'concluido' | 'cancelado';
+  status: 'agendado' | 'concluido' | 'cancelado' | 'nao_veio';
   notes?: string;
   durationTotal?: number;
   googleEventId?: string; // ID para exclusão no Google Calendar
   paidAmount?: number; // Valor Pago
   paymentMethod?: 'Credito' | 'Debito' | 'Pix' | 'Dinheiro' | ''; // Forma de Pagamento
+  rating?: number; // 1-5
+  ratingTags?: string[]; // Tags de avaliação
 }
 
 export interface CostItem {

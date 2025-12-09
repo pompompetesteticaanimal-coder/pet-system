@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { EvaluationModal } from './components/EvaluationModal';
 import { Layout } from './components/Layout';
 import { db } from './services/db';
 import { googleService, DEFAULT_CLIENT_ID } from './services/googleCalendar';
@@ -13,7 +14,7 @@ import {
     ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
     Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle, Loader2,
     Scissors, TrendingUp, AlertOctagon, BarChart2, TrendingDown, Calendar, PieChart as PieChartIcon,
-    ShoppingBag, Tag, User, Users, Key, Unlock, Home, Activity, Menu, ArrowRightLeft
+    ShoppingBag, Tag, User, Users, Key, Unlock, Home, Activity, Menu, ArrowRightLeft, Star
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -65,6 +66,29 @@ const LoginScreen: React.FC<{ onLogin: () => void; onReset: () => void; settings
                 >
                     <div className="bg-white p-1 rounded-full"><LogIn className="text-brand-600 group-hover:scale-110 transition-transform" /></div>
                     {googleLoaded ? 'Entrar com Google' : 'Carregando Google...'}
+                </button>
+                <button
+                    onClick={() => {
+                        localStorage.setItem('petgestor_access_token', 'demo_token');
+                        localStorage.setItem('petgestor_token_expiry', (Date.now() + 3600000).toString());
+                        localStorage.setItem('petgestor_user_profile', JSON.stringify({ name: 'Demo User', email: 'demo@example.com', picture: '', id: 'demo_id' }));
+
+                        // Inject Mock Data
+                        const mockService: Service = { id: 'srv_demo_1', name: 'Banho Teste', price: 50, durationMin: 60, description: 'Serviço de teste', category: 'principal' };
+                        const mockClient: Client = { id: 'cli_demo_1', name: 'Cliente Demo', phone: '(11) 99999-9999', address: 'Rua Teste', pets: [{ id: 'pet_demo_1', name: 'Rex', breed: 'Vira-lata', age: '2', gender: 'Macho', size: 'Médio', coat: 'Curto', notes: 'Dócil' }] };
+                        const mockAppointment: Appointment = {
+                            id: 'app_demo_1', clientId: 'cli_demo_1', petId: 'pet_demo_1', serviceId: 'srv_demo_1', date: new Date().toISOString(), status: 'agendado', paymentMethod: '', paidAmount: 0, rating: 0, ratingTags: []
+                        };
+
+                        localStorage.setItem('petgestor_services', JSON.stringify([mockService]));
+                        localStorage.setItem('petgestor_clients', JSON.stringify([mockClient]));
+                        localStorage.setItem('petgestor_appointments', JSON.stringify([mockAppointment]));
+
+                        window.location.reload();
+                    }}
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-xl transition mb-4 text-sm"
+                >
+                    Entrar Modo Demo (Sem Login)
                 </button>
                 <button onClick={onReset} className="mt-8 text-xs text-gray-400 hover:text-red-500 underline">Alterar ID do Cliente</button>
             </div>
@@ -401,12 +425,19 @@ const CostsView: React.FC<{ costs: CostItem[] }> = ({ costs }) => {
 
 const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onUpdateAppointment: (app: Appointment) => void; accessToken: string | null; sheetId: string; }> = ({ appointments, clients, services, onUpdateAppointment, accessToken, sheetId }) => {
     const getLocalISODate = (d: Date = new Date()) => { const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; };
-    const [selectedDate, setSelectedDate] = useState(getLocalISODate()); const [editingId, setEditingId] = useState<string | null>(null); const [amount, setAmount] = useState(''); const [method, setMethod] = useState(''); const [isSaving, setIsSaving] = useState(false); const [activeTab, setActiveTab] = useState<'toReceive' | 'pending' | 'paid'>('toReceive'); const [contextMenu, setContextMenu] = useState<{ x: number, y: number, app: Appointment } | null>(null);
+    const [selectedDate, setSelectedDate] = useState(getLocalISODate()); const [editingId, setEditingId] = useState<string | null>(null); const [amount, setAmount] = useState(''); const [method, setMethod] = useState(''); const [isSaving, setIsSaving] = useState(false); const [activeTab, setActiveTab] = useState<'toReceive' | 'pending' | 'paid' | 'noShow'>('toReceive'); const [contextMenu, setContextMenu] = useState<{ x: number, y: number, app: Appointment } | null>(null);
+    const [showEvaluationModal, setShowEvaluationModal] = useState(false);
+    const [evaluatingApp, setEvaluatingApp] = useState<Appointment | null>(null);
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
     const touchStart = useRef<number | null>(null);
     const getAppLocalDateStr = (dateStr: string) => { const d = new Date(dateStr); return getLocalISODate(d); };
-    const pendingApps = appointments.filter(a => { const appDate = getAppLocalDateStr(a.date); const isPast = appDate < getLocalISODate(); const isUnpaid = !a.paymentMethod || a.paymentMethod.trim() === ''; return isPast && isUnpaid; }).sort((a, b) => b.date.localeCompare(a.date));
-    const dailyApps = appointments.filter(a => getAppLocalDateStr(a.date) === selectedDate); const toReceiveApps = dailyApps.filter(a => !a.paymentMethod || a.paymentMethod.trim() === ''); const paidApps = dailyApps.filter(a => a.paymentMethod && a.paymentMethod.trim() !== '');
+
+    // Filters
+    const dailyApps = appointments.filter(a => getAppLocalDateStr(a.date) === selectedDate && a.status !== 'cancelado');
+    const noShowApps = dailyApps.filter(a => a.status === 'nao_veio');
+    const toReceiveApps = dailyApps.filter(a => (!a.paymentMethod || a.paymentMethod.trim() === '') && a.status !== 'nao_veio');
+    const paidApps = dailyApps.filter(a => a.paymentMethod && a.paymentMethod.trim() !== '');
+    const pendingApps = appointments.filter(a => { const appDate = getAppLocalDateStr(a.date); const isPast = appDate < getLocalISODate(); const isUnpaid = (!a.paymentMethod || a.paymentMethod.trim() === ''); return isPast && isUnpaid && a.status !== 'nao_veio' && a.status !== 'cancelado'; }).sort((a, b) => b.date.localeCompare(a.date));
 
     const navigateDate = (days: number) => {
         setSlideDirection(days > 0 ? 'right' : 'left');
@@ -426,6 +457,8 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
         setIsSaving(true);
         const finalAmount = parseFloat(amount);
         const updatedApp = { ...app, paidAmount: finalAmount, paymentMethod: method as any };
+
+        // Sync Payment to Sheet (Cols Q, R)
         if (app.id.startsWith('sheet_') && accessToken && sheetId) {
             try {
                 const parts = app.id.split('_');
@@ -435,12 +468,56 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
                 const values = [finalAmount.toString().replace('.', ','), method];
                 await googleService.updateSheetValues(accessToken, sheetId, range, values);
             } catch (e) {
-                console.error("Failed", e); alert("Erro ao salvar na planilha.");
+                console.error("Failed", e);
             }
-        } else {
-            alert('Aviso: Sincronize antes de pagar.');
         }
-        onUpdateAppointment(updatedApp); setEditingId(null); setIsSaving(false);
+
+        onUpdateAppointment(updatedApp);
+        setEditingId(null);
+        setIsSaving(false);
+
+        // Trigger Evaluation Modal
+        setEvaluatingApp(updatedApp);
+        setShowEvaluationModal(true);
+    };
+
+    const handleEvaluationSave = async (rating: number, tags: string[], extraNotes: string) => {
+        if (!evaluatingApp) return;
+        const ratingString = `[Avaliação: ${rating}/5]`;
+        const tagString = tags.length > 0 ? `[Tags: ${tags.join(', ')}]` : '';
+        const noteString = extraNotes ? `[Obs: ${extraNotes}]` : '';
+        const fullNote = `${evaluatingApp.notes || ''} ${ratingString} ${tagString} ${noteString}`.trim();
+
+        const finalApp = { ...evaluatingApp, rating, ratingTags: tags, notes: fullNote };
+        onUpdateAppointment(finalApp);
+
+        if (finalApp.id.startsWith('sheet_') && accessToken && sheetId) {
+            try {
+                const parts = finalApp.id.split('_');
+                const rowNumber = parseInt(parts[1]) + 1;
+                await googleService.updateSheetValues(accessToken, sheetId, `Agendamento!N${rowNumber}`, [fullNote]);
+            } catch (e) {
+                console.error("Failed to sync evaluation", e);
+            }
+        }
+        setEvaluatingApp(null);
+        setShowEvaluationModal(false);
+    };
+
+    const handleNoShow = async (app: Appointment) => {
+        if (!confirm(`Marcar ${clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name} como "Não Veio"?`)) return;
+        const note = `${app.notes || ''} [NÃO VEIO]`.trim();
+        const updatedApp = { ...app, status: 'nao_veio' as const, notes: note };
+        onUpdateAppointment(updatedApp);
+
+        if (app.id.startsWith('sheet_') && accessToken && sheetId) {
+            try {
+                const parts = app.id.split('_');
+                const row = parseInt(parts[1]) + 1;
+                // Update OBS (Col N) with [NÃO VEIO] marker
+                await googleService.updateSheetValues(accessToken, sheetId, `Agendamento!N${row}`, [note]);
+            } catch (e) { console.error(e); alert('Erro ao sincronizar status.'); }
+        }
     };
 
     const handleTouchStart = (e: React.TouchEvent) => touchStart.current = e.touches[0].clientX;
@@ -490,16 +567,59 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
                     {mainSvc && <span className="text-[10px] bg-white border border-gray-200/60 px-2 py-1 rounded-lg text-gray-600 font-medium shadow-sm">{mainSvc.name}</span>}
                     {addSvcs.map((s, idx) => (<span key={idx} className="text-[10px] bg-white border border-gray-200/60 px-2 py-1 rounded-lg text-gray-600 font-medium shadow-sm">{s.name}</span>))}
                 </div>
-                <button onClick={() => handleStartEdit(app)} className="w-full bg-white hover:bg-gray-50 text-gray-600 hover:text-brand-600 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all border border-gray-100 shadow-sm group-hover:shadow-md active:scale-95 ml-1"> <DollarSign size={14} /> {isPaid ? 'Editar Detalhes' : 'Registrar Pagamento'} </button>
+                <div className="flex gap-2 ml-1">
+                    <button onClick={() => handleStartEdit(app)} className="flex-1 bg-white hover:bg-gray-50 text-gray-600 hover:text-brand-600 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-xs transition-all border border-gray-100 shadow-sm group-hover:shadow-md active:scale-95"> <DollarSign size={14} /> {isPaid ? 'Editar Detalhes' : 'Registrar Pagamento'} </button>
+                    {!isPaid && statusColor !== 'bg-gray-100 opacity-75' && (
+                        <button onClick={() => handleNoShow(app)} className="px-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl flex items-center justify-center font-bold text-xs transition-all border border-red-100 active:scale-95 whitespace-nowrap">Não Veio</button>
+                    )}
+                </div>
             </div>
         );
     };
 
-    return (<div className="space-y-4 h-full flex flex-col pt-2" onClick={() => setContextMenu(null)} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}> <div className="flex flex-col md:flex-row justify-between items-center gap-4 flex-shrink-0 bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-white/40 shadow-sm"> <h2 className="text-2xl font-bold text-gray-900 tracking-tight self-start md:self-center">Pagamentos</h2> <div className="flex items-center gap-2 w-full md:w-auto bg-gray-50/50 p-1.5 rounded-2xl border border-gray-100 flex-shrink-0"> <button onClick={() => navigateDate(-1)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-500 transition-all"><ChevronLeft size={18} /></button> <button onClick={goToToday} className="flex-1 px-4 py-2 bg-white text-brand-600 font-bold rounded-xl text-xs shadow-sm border border-gray-100 hover:bg-gray-50 transition-all">Hoje</button> <button onClick={() => navigateDate(1)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-500 transition-all"><ChevronRight size={18} /></button> <div className="text-xs font-bold text-gray-700 px-3 min-w-[110px] text-center uppercase tracking-wide">{formatDateWithWeek(selectedDate)}</div> </div> </div> <div className="flex p-1.5 bg-gray-200/50 rounded-2xl overflow-x-auto gap-1"> <button onClick={() => setActiveTab('toReceive')} className={`flex-1 min-w-[100px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'toReceive' ? 'bg-white shadow-md text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">A Receber</span> <span className="text-lg">{toReceiveApps.length}</span> </button> <button onClick={() => setActiveTab('pending')} className={`flex-1 min-w-[100px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'pending' ? 'bg-white shadow-md text-red-600' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Pendentes</span> <span className="text-lg">{pendingApps.length}</span> </button> <button onClick={() => setActiveTab('paid')} className={`flex-1 min-w-[100px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'paid' ? 'bg-white shadow-md text-green-600' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Pagos</span> <span className="text-lg">{paidApps.length}</span> </button> </div> <div key={selectedDate} className={`flex-1 overflow-y-auto min-h-0 bg-transparent p-1 ${animationClass}`}> {activeTab === 'toReceive' && toReceiveApps.map(app => renderPaymentRow(app, "bg-gradient-to-br from-yellow-50 to-white"))} {activeTab === 'pending' && pendingApps.map(app => renderPaymentRow(app, "bg-gradient-to-br from-red-50 to-white"))} {activeTab === 'paid' && paidApps.map(app => renderPaymentRow(app, "bg-gradient-to-br from-green-50 to-white border-green-100"))} </div> {contextMenu && (<div className="fixed bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 rounded-2xl z-[100] py-2 min-w-[180px] animate-scale-up glass-card" style={{ top: contextMenu.y, left: contextMenu.x }}> <button onClick={() => handleStartEdit(contextMenu.app)} className="w-full text-left px-5 py-3 hover:bg-brand-50 text-gray-700 text-sm flex items-center gap-3 font-medium transition-colors"><Edit2 size={16} className="text-gray-400" /> Editar Valor</button> </div>)} {editingId && createPortal((() => { const app = appointments.find(a => a.id === editingId); if (!app) return null; const client = clients.find(c => c.id === app.clientId); const pet = client?.pets.find(p => p.id === app.petId); return (<div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setEditingId(null)}> <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative animate-scale-up select-none" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"> <div><h3 className="text-2xl font-bold text-gray-900">{pet?.name}</h3><span className="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-lg">Pagamento</span></div><button onClick={() => setEditingId(null)} className="bg-gray-100 p-2 rounded-full text-gray-500 hover:bg-gray-200"><X size={20} /></button></div> <div className="space-y-4"> <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Valor R$</label><input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-2xl font-black text-gray-800 focus:ring-2 ring-brand-500 outline-none transition-all placeholder:text-gray-300" autoFocus /></div> <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Método</label><div className="grid grid-cols-2 gap-2"> {['Credito', 'Debito', 'Pix', 'Dinheiro'].map(m => (<button key={m} onClick={() => setMethod(m)} className={`p-3 rounded-xl font-bold text-sm transition-all border ${method === m ? 'bg-brand-600 text-white border-brand-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{m}</button>))} </div></div> <button onClick={() => handleSave(app)} disabled={isSaving} className="w-full bg-brand-600 hover:bg-brand-700 text-white py-4 rounded-xl font-bold text-lg shadow-xl shadow-brand-200 transition-all active:scale-95 mt-2 flex items-center justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : 'Confirmar Pagamento'}</button> </div> </div> </div>) })(), document.body)} </div>)
+    return (<div className="space-y-4 h-full flex flex-col pt-2" onClick={() => setContextMenu(null)} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 flex-shrink-0 bg-white/60 backdrop-blur-md p-4 rounded-3xl border border-white/40 shadow-sm">
+            <h2 className="text-2xl font-bold text-gray-900 tracking-tight self-start md:self-center">Pagamentos</h2>
+            <div className="flex items-center gap-2 w-full md:w-auto bg-gray-50/50 p-1.5 rounded-2xl border border-gray-100 flex-shrink-0">
+                <button onClick={() => navigateDate(-1)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-500 transition-all"><ChevronLeft size={18} /></button>
+                <button onClick={goToToday} className="flex-1 px-4 py-2 bg-white text-brand-600 font-bold rounded-xl text-xs shadow-sm border border-gray-100 hover:bg-gray-50 transition-all">Hoje</button>
+                <button onClick={() => navigateDate(1)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-500 transition-all"><ChevronRight size={18} /></button>
+                <div className="text-xs font-bold text-gray-700 px-3 min-w-[110px] text-center uppercase tracking-wide">{formatDateWithWeek(selectedDate)}</div>
+            </div>
+        </div>
+
+        <div className="flex p-1.5 bg-gray-200/50 rounded-2xl overflow-x-auto gap-1">
+            <button onClick={() => setActiveTab('toReceive')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'toReceive' ? 'bg-white shadow-md text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">A Receber</span> <span className="text-lg">{toReceiveApps.length}</span> </button>
+            <button onClick={() => setActiveTab('pending')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'pending' ? 'bg-white shadow-md text-red-600' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Pendentes</span> <span className="text-lg">{pendingApps.length}</span> </button>
+            <button onClick={() => setActiveTab('paid')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'paid' ? 'bg-white shadow-md text-green-600' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Pagos</span> <span className="text-lg">{paidApps.length}</span> </button>
+            <button onClick={() => setActiveTab('noShow')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'noShow' ? 'bg-white shadow-md text-gray-500' : 'text-gray-500 hover:text-gray-700'}`}> <span className="block text-[10px] uppercase tracking-wider text-gray-400 mb-0.5">Não Veio</span> <span className="text-lg">{noShowApps.length}</span> </button>
+        </div>
+
+        <div key={selectedDate} className={`flex-1 overflow-y-auto min-h-0 bg-transparent p-1 ${animationClass}`}>
+            {activeTab === 'toReceive' && toReceiveApps.map(app => renderPaymentRow(app, "bg-gradient-to-br from-yellow-50 to-white"))}
+            {activeTab === 'pending' && pendingApps.map(app => renderPaymentRow(app, "bg-gradient-to-br from-red-50 to-white"))}
+            {activeTab === 'paid' && paidApps.map(app => renderPaymentRow(app, "bg-gradient-to-br from-green-50 to-white border-green-100"))}
+            {activeTab === 'noShow' && noShowApps.map(app => renderPaymentRow(app, "bg-gray-100 opacity-75"))}
+        </div>
+
+        {contextMenu && (<div className="fixed bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 rounded-2xl z-[100] py-2 min-w-[180px] animate-scale-up glass-card" style={{ top: contextMenu.y, left: contextMenu.x }}> <button onClick={() => handleStartEdit(contextMenu.app)} className="w-full text-left px-5 py-3 hover:bg-brand-50 text-gray-700 text-sm flex items-center gap-3 font-medium transition-colors"><Edit2 size={16} className="text-gray-400" /> Editar Valor</button> </div>)}
+
+        {editingId && createPortal((() => { const app = appointments.find(a => a.id === editingId); if (!app) return null; const client = clients.find(c => c.id === app.clientId); const pet = client?.pets.find(p => p.id === app.petId); return (<div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setEditingId(null)}> <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative animate-scale-up select-none" onClick={e => e.stopPropagation()}> <div className="flex justify-between items-center mb-6"> <div><h3 className="text-2xl font-bold text-gray-900">{pet?.name}</h3><span className="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-lg">Pagamento</span></div><button onClick={() => setEditingId(null)} className="bg-gray-100 p-2 rounded-full text-gray-500 hover:bg-gray-200"><X size={20} /></button></div> <div className="space-y-4"> <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Valor R$</label><input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-gray-50 border border-gray-200 p-4 rounded-xl text-2xl font-black text-gray-800 focus:ring-2 ring-brand-500 outline-none transition-all placeholder:text-gray-300" autoFocus /></div> <div><label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 block">Método</label><div className="grid grid-cols-2 gap-2"> {['Credito', 'Debito', 'Pix', 'Dinheiro'].map(m => (<button key={m} onClick={() => setMethod(m)} className={`p-3 rounded-xl font-bold text-sm transition-all border ${method === m ? 'bg-brand-600 text-white border-brand-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{m}</button>))} </div></div> <button onClick={() => handleSave(app)} disabled={isSaving} className="w-full bg-brand-600 hover:bg-brand-700 text-white py-4 rounded-xl font-bold text-lg shadow-xl shadow-brand-200 transition-all active:scale-95 mt-2 flex items-center justify-center gap-2">{isSaving ? <Loader2 className="animate-spin" /> : 'Confirmar Pagamento'}</button> </div> </div> </div>) })(), document.body)}
+
+        {showEvaluationModal && evaluatingApp && (
+            <EvaluationModal
+                isOpen={showEvaluationModal}
+                onClose={() => setShowEvaluationModal(false)}
+                onSave={handleEvaluationSave}
+                clientName={clients.find(c => c.id === evaluatingApp.clientId)?.name}
+                petName={clients.find(c => c.id === evaluatingApp.clientId)?.pets.find(p => p.id === evaluatingApp.petId)?.name}
+            />
+        )}
+    </div>)
 
 };
 
-const ClientManager: React.FC<{ clients: Client[]; onDeleteClient: (id: string) => void; googleUser: GoogleUser | null; accessToken: string | null; }> = ({ clients, onDeleteClient }) => {
+const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; onDeleteClient: (id: string) => void; googleUser: GoogleUser | null; accessToken: string | null; }> = ({ clients, appointments, onDeleteClient }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleCount, setVisibleCount] = useState(20);
 
@@ -540,6 +660,33 @@ const ClientManager: React.FC<{ clients: Client[]; onDeleteClient: (id: string) 
                             <div className="flex justify-between items-start mb-4 relative z-10">
                                 <div className="min-w-0 pr-2">
                                     <h3 className="font-bold text-gray-900 truncate text-lg tracking-tight">{client.name}</h3>
+                                    {(() => {
+                                        const cApps = appointments.filter(a => a.clientId === client.id && a.rating);
+                                        if (cApps.length > 0) {
+                                            const avg = cApps.reduce((acc, c) => acc + (c.rating || 0), 0) / cApps.length;
+                                            const allTags = cApps.flatMap(a => a.ratingTags || []);
+                                            const tagCounts: Record<string, number> = {};
+                                            allTags.forEach(t => tagCounts[t] = (tagCounts[t] || 0) + 1);
+                                            const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+
+                                            return (
+                                                <div className="mt-1 mb-1">
+                                                    <div className="flex items-center gap-1 mb-1">
+                                                        <div className="flex text-yellow-400">
+                                                            {[1, 2, 3, 4, 5].map(s => <Star key={s} size={10} className={avg >= s ? "fill-current" : "text-gray-200"} />)}
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-gray-400">({cApps.length})</span>
+                                                    </div>
+                                                    {topTags.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {topTags.map(t => <span key={t} className="text-[9px] bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded border border-yellow-100 font-bold">{t}</span>)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1 font-medium bg-white/50 px-2 py-1 rounded-lg w-fit shadow-sm border border-gray-100/50"><Phone size={12} className="text-brand-400" /> {client.phone}</p>
                                 </div>
                                 <button onClick={() => { if (confirm('Excluir?')) onDeleteClient(client.id); }} className="text-gray-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-xl transition shadow-sm bg-white border border-gray-100"><Trash2 size={16} /></button>
@@ -989,7 +1136,7 @@ const App: React.FC = () => {
                 {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} defaultTab="monthly" />}
                 {currentView === 'costs' && <CostsView costs={costs} />}
                 {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} accessToken={accessToken} sheetId={SHEET_ID} />}
-                {currentView === 'clients' && <ClientManager clients={clients} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
+                {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
                 {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} />}

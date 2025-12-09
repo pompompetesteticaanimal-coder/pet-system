@@ -154,6 +154,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
                   <button onClick={onLogout} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1 mt-0.5 hover:underline decoration-red-200">
                     Sair da conta
                   </button>
+                  {googleUser.id === 'demo_id' && (
+                    <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-[10px] bg-gray-100 px-2 py-1 rounded mt-1 text-gray-500 hover:bg-gray-200 w-full text-center">
+                      Reiniciar Demo
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
