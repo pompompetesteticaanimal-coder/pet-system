@@ -174,7 +174,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
     const handleTouchEnd = (e: React.TouchEvent) => {
         if (!touchStart.current) return;
         const diff = touchStart.current - e.changedTouches[0].clientX;
-        if (activeTab === 'daily' && Math.abs(diff) > 50) {
+        if (activeTab === 'daily' && Math.abs(diff) > 100) {
             const [y, m, d] = selectedDate.split('-').map(Number);
             const date = new Date(y, m - 1, d);
             const isNext = diff > 0;
@@ -446,7 +446,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
     const handleTouchEnd = (e: React.TouchEvent) => {
         if (!touchStart.current) return;
         const diff = touchStart.current - e.changedTouches[0].clientX;
-        if (Math.abs(diff) > 50) navigateDate(diff > 0 ? 1 : -1);
+        if (Math.abs(diff) > 100) navigateDate(diff > 0 ? 1 : -1);
         touchStart.current = null;
     };
 
@@ -659,7 +659,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     const handleTouchEnd = (e: React.TouchEvent) => {
         if (!touchStart.current) return;
         const diff = touchStart.current - e.changedTouches[0].clientX;
-        if (viewMode === 'day' && Math.abs(diff) > 50) navigate(diff > 0 ? 'next' : 'prev');
+        if (viewMode === 'day' && Math.abs(diff) > 100) navigate(diff > 0 ? 'next' : 'prev');
         touchStart.current = null;
     };
 
