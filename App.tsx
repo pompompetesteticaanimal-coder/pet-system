@@ -1148,6 +1148,34 @@ const App: React.FC = () => {
 
     useEffect(() => { const root = document.documentElement; const themes: Record<string, string> = { rose: '225 29 72', blue: '37 99 235', purple: '147 51 234', green: '22 163 74', orange: '234 88 12' }; const color = themes[settings.theme] || themes.rose; root.style.setProperty('--brand-600', color); }, [settings.theme]);
 
+
+    // Apply Theme & Dark Mode
+    useEffect(() => {
+        const root = document.documentElement;
+
+        // Dark Mode Logic
+        if (settings.darkMode) {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+
+        // Theme Color Logic
+        const themeColors: Record<string, string> = {
+            rose: '#e11d48',
+            blue: '#2563eb',
+            purple: '#9333ea',
+            green: '#16a34a',
+            orange: '#ea580c'
+        };
+
+        const color = themeColors[settings.theme || 'rose'];
+        if (color) {
+            root.style.setProperty('--brand-600', color);
+        }
+
+    }, [settings.theme, settings.darkMode]);
+
     const performFullSync = async (token: string) => { if (!SHEET_ID) return; setIsGlobalLoading(true); try { await handleSyncServices(token, true); await handleSyncClients(token, true); await handleSyncAppointments(token, true); await handleSyncCosts(token, true); } catch (e) { console.error("Auto Sync Failed", e); } finally { setIsGlobalLoading(false); } }
 
     const initAuthLogic = () => { if ((window as any).google) { googleService.init(async (tokenResponse) => { if (tokenResponse && tokenResponse.access_token) { const token = tokenResponse.access_token; const expiresIn = tokenResponse.expires_in || 3599; localStorage.setItem(STORAGE_KEY_TOKEN, token); localStorage.setItem(STORAGE_KEY_EXPIRY, (Date.now() + (expiresIn * 1000)).toString()); setAccessToken(token); const profile = await googleService.getUserProfile(token); if (profile) { const user = { id: profile.id, name: profile.name, email: profile.email, picture: profile.picture }; setGoogleUser(user); localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user)); } performFullSync(token); } }); } };
