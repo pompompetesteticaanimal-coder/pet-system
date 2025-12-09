@@ -16,158 +16,174 @@ interface LayoutProps {
 
 const DEFAULT_LOGO_URL = 'https://photos.app.goo.gl/xs394sFQNYBBocea8';
 
-const NavItem = ({ 
-  view, 
-  current, 
-  icon: Icon, 
-  label, 
-  onClick 
-}: { 
-  view: ViewState; 
-  current: ViewState; 
-  icon: any; 
-  label: string; 
-  onClick: (v: ViewState) => void 
+const NavItem = ({
+  view,
+  current,
+  icon: Icon,
+  label,
+  onClick
+}: {
+  view: ViewState;
+  current: ViewState;
+  icon: any;
+  label: string;
+  onClick: (v: ViewState) => void
 }) => {
   const isActive = view === current;
   return (
     <button
       onClick={() => onClick(view)}
-      className={`flex items-center space-x-3 w-full p-3 rounded-lg transition-colors ${
-        isActive 
-          ? 'bg-brand-600 text-white shadow-md' 
-          : 'text-gray-600 hover:bg-brand-50 hover:text-brand-600'
-      }`}
+      className={`group flex items-center space-x-3 w-full p-3 rounded-xl transition-all duration-200 outline-none ${isActive
+          ? 'bg-brand-600 text-white shadow-lg shadow-brand-200 scale-100'
+          : 'text-gray-500 hover:bg-white hover:text-brand-600 hover:shadow-ios'
+        }`}
     >
-      <Icon size={20} />
-      <span className="font-medium">{label}</span>
+      <div className={`p-2 rounded-lg transition-colors ${isActive ? 'bg-white/20' : 'group-hover:bg-brand-50'}`}>
+        <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+      </div>
+      <span className="font-semibold text-sm tracking-wide">{label}</span>
     </button>
   );
 };
 
 // Componente da Barra Inferior (Mobile)
-const BottomNavItem = ({ 
-  view, 
-  current, 
-  icon: Icon, 
-  label, 
-  onClick 
-}: { 
-  view: ViewState; 
-  current: ViewState; 
-  icon: any; 
-  label: string; 
-  onClick: (v: ViewState) => void 
+const BottomNavItem = ({
+  view,
+  current,
+  icon: Icon,
+  label,
+  onClick
+}: {
+  view: ViewState;
+  current: ViewState;
+  icon: any;
+  label: string;
+  onClick: (v: ViewState) => void
 }) => {
-  // home mapeia para revenue (diario) neste contexto especifico se desejar, mas vamos usar view direta
   const isActive = view === current;
   return (
-    <button 
-      onClick={() => onClick(view)} 
-      className={`flex flex-col items-center justify-center w-full py-2 transition-colors ${isActive ? 'text-brand-600' : 'text-gray-400'}`}
+    <button
+      onClick={() => onClick(view)}
+      className={`flex flex-col items-center justify-center w-full py-1 transition-all duration-300 relative ${isActive ? 'text-brand-600 -translate-y-1' : 'text-gray-400 opacity-70'}`}
     >
-      <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-      <span className="text-[10px] font-medium mt-1">{label}</span>
+      <div className={`p-1.5 rounded-xl mb-0.5 transition-all ${isActive ? 'bg-brand-50' : 'bg-transparent'}`}>
+        <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+      </div>
+      <span className="text-[10px] font-bold">{label}</span>
+      {isActive && <div className="absolute -bottom-2 w-1 h-1 rounded-full bg-brand-600" />}
     </button>
   );
 };
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, googleUser, onLogin, onLogout, settings, onOpenSettings }) => {
-  // Mobile: Sidebar is always hidden, Desktop: Sidebar is always visible
-  // No more drawer logic
-
-  // Define menu groups for Desktop Sidebar
   const menuGroups = {
-      operacional: (
-          <div className="pb-2" key="operacional">
-             <p className="px-3 text-xs font-bold text-gray-400 uppercase mb-2">Operacional</p>
-             <NavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={setView} />
-             <NavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={setView} />
-          </div>
-      ),
-      cadastros: (
-          <div className="border-t border-gray-100 pt-2 pb-2" key="cadastros">
-             <p className="px-3 text-xs font-bold text-gray-400 uppercase mb-2">Cadastros e Serviços</p>
-             <NavItem view="clients" current={currentView} icon={Users} label="Clientes & Pets" onClick={setView} />
-             <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={setView} />
-          </div>
-      ),
-      gerencial: (
-          <div className="border-t border-gray-100 pt-2" key="gerencial">
-            <p className="px-3 text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1"><Lock size={10}/> Gerencial</p>
-            <NavItem view="revenue" current={currentView} icon={TrendingUp} label="Faturamento" onClick={setView} />
-            <NavItem view="costs" current={currentView} icon={TrendingDown} label="Custo Mensal" onClick={setView} />
-          </div>
-      )
+    operacional: (
+      <div className="pb-4" key="operacional">
+        <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Operacional</p>
+        <div className="space-y-1">
+          <NavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={setView} />
+          <NavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={setView} />
+        </div>
+      </div>
+    ),
+    cadastros: (
+      <div className="pt-4 pb-4" key="cadastros">
+        <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Cadastros</p>
+        <div className="space-y-1">
+          <NavItem view="clients" current={currentView} icon={Users} label="Clientes" onClick={setView} />
+          <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={setView} />
+        </div>
+      </div>
+    ),
+    gerencial: (
+      <div className="pt-4" key="gerencial">
+        <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1"><Lock size={10} /> Gerencial</p>
+        <div className="space-y-1">
+          <NavItem view="revenue" current={currentView} icon={TrendingUp} label="Faturamento" onClick={setView} />
+          <NavItem view="costs" current={currentView} icon={TrendingDown} label="Custos" onClick={setView} />
+        </div>
+      </div>
+    )
   };
 
   const order = settings?.sidebarOrder || ['operacional', 'cadastros', 'gerencial'];
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden relative">
-      
-      {/* Sidebar (Desktop Only - Hidden on Mobile) */}
+    <div className="flex h-screen bg-ios-bg overflow-hidden relative selection:bg-brand-100 selection:text-brand-900">
+
+      {/* Sidebar (Desktop) - MacGlass Style */}
       <aside className={`
-        hidden md:block
-        w-64 bg-white border-r border-gray-200 h-full
+        hidden md:flex flex-col
+        w-72 h-full z-20
+        bg-white/80 backdrop-blur-xl border-r border-white/20 shadow-glass
       `}>
-        <div className="p-6 flex items-center justify-between border-b border-gray-100 h-[72px]">
-            <div className="flex items-center space-x-2">
-                 <img src={settings?.logoUrl || DEFAULT_LOGO_URL} alt="Logo" className="w-10 h-10 object-contain rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}/>
-                <h1 className="text-xl font-bold text-gray-800 truncate">{settings?.appName || 'PomPomPet'}</h1>
-            </div>
+        <div className="p-6 flex items-center gap-3">
+          <div className="relative group cursor-pointer" onClick={onOpenSettings}>
+            <div className="absolute inset-0 bg-brand-400 blur-lg opacity-20 group-hover:opacity-40 transition-opacity rounded-xl"></div>
+            <img src={settings?.logoUrl || DEFAULT_LOGO_URL} alt="Logo" className="w-12 h-12 object-contain rounded-xl relative shadow-sm transition-transform group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight leading-none">{settings?.appName || 'PomPomPet'}</h1>
+            <p className="text-xs text-brand-600 font-medium mt-0.5">Gestão Inteligente</p>
+          </div>
         </div>
-        
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+
+        <nav className="flex-1 px-4 py-2 overflow-y-auto no-scrollbar mask-gradient-b">
           {order.map(key => menuGroups[key as keyof typeof menuGroups])}
         </nav>
-        
-        {/* Google Auth Section */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-2">
-            <button onClick={onOpenSettings} className="w-full text-xs flex items-center justify-center gap-2 text-gray-500 hover:text-brand-600 hover:bg-gray-100 p-2 rounded transition font-medium border border-gray-200">
-                <Settings size={14} /> Configurações
-            </button>
 
-            {googleUser ? (
-                <div className="bg-white border border-gray-200 p-3 rounded-lg shadow-sm">
-                    <div className="flex items-center gap-3 mb-2">
-                        {googleUser.picture && <img src={googleUser.picture} alt="Profile" className="w-8 h-8 rounded-full ring-2 ring-white" />}
-                        <div className="overflow-hidden">
-                            <p className="text-xs font-bold text-gray-800 truncate">{googleUser.name}</p>
-                            <p className="text-[10px] text-green-600 flex items-center gap-1 font-medium">● Conectado</p>
-                        </div>
-                    </div>
-                    <button onClick={onLogout} className="w-full text-xs flex items-center justify-center gap-1 text-red-500 hover:bg-red-50 p-2 rounded transition font-medium border border-transparent hover:border-red-100">
-                        <LogOut size={12} /> Sair
-                    </button>
+        {/* User Profile / Auth */}
+        <div className="p-4 m-4 bg-white/50 rounded-2xl border border-white/40 shadow-sm backdrop-blur-sm">
+          {googleUser ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                {googleUser.picture ? (
+                  <img src={googleUser.picture} alt="Profile" className="w-10 h-10 rounded-full ring-2 ring-white shadow-sm" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold">{googleUser.name[0]}</div>
+                )}
+                <div className="overflow-hidden">
+                  <p className="text-sm font-bold text-gray-800 truncate">{googleUser.name}</p>
+                  <button onClick={onLogout} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1 mt-0.5 hover:underline decoration-red-200">
+                    Sair da conta
+                  </button>
                 </div>
-            ) : (
-                <button onClick={onLogin} className="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 p-3 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition shadow-sm">
-                    <LogIn size={16} /> Conectar Google
-                </button>
-            )}
+              </div>
+            </div>
+          ) : (
+            <button onClick={onLogin} className="w-full bg-gray-900 hover:bg-black text-white p-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all shadow-lg shadow-gray-200 hover:shadow-gray-400 hover:-translate-y-0.5">
+              <LogIn size={16} /> Entrar com Google
+            </button>
+          )}
+          <button onClick={onOpenSettings} className="w-full mt-3 text-xs flex items-center justify-center gap-1 text-gray-400 hover:text-brand-600 transition p-1">
+            <Settings size={12} /> Configurações do Sistema
+          </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden w-full bg-gray-50">
-        <div className="flex-1 overflow-auto p-3 md:p-8 pb-20 md:pb-8 custom-scrollbar">
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 pointer-events-none" />
+        <div className="flex-1 overflow-auto p-4 md:p-8 pb-28 md:pb-8 no-scrollbar scroll-smooth">
+          <div className="max-w-7xl mx-auto w-full">
             {children}
+          </div>
         </div>
       </main>
 
-      {/* Bottom Navigation (Mobile Only) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center pb-safe z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        {/* 1. Resumo Diário (Mapeado para 'home' que renderiza o RevenueView Daily) */}
+      {/* Mobile Floating Tab Bar */}
+      <div className="md:hidden fixed bottom-6 left-4 right-4 h-20 bg-white/90 backdrop-blur-xl border border-white/40 rounded-3xl shadow-2xl glass-card flex justify-around items-center px-2 z-50 animate-slide-up">
         <BottomNavItem view="home" current={currentView} icon={BarChart2} label="Diário" onClick={setView} />
-        
-        {/* 2. Pagamentos */}
-        <BottomNavItem view="payments" current={currentView} icon={Wallet} label="Pagamentos" onClick={setView} />
-        
-        {/* 3. Agenda */}
-        <BottomNavItem view="schedule" current={currentView} icon={Calendar} label="Agenda" onClick={setView} />
-        
-        {/* 4. Menu (Substitui barra lateral) */}
+        <BottomNavItem view="payments" current={currentView} icon={Wallet} label="Pagto" onClick={setView} />
+        <div className="relative -top-6">
+          <button
+            onClick={() => setView('schedule')}
+            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl shadow-brand-200 transition-all active:scale-95 ${currentView === 'schedule' ? 'bg-brand-600 text-white ring-4 ring-white' : 'bg-gray-900 text-white'}`}
+          >
+            <Calendar size={28} />
+          </button>
+        </div>
+        <BottomNavItem view="clients" current={currentView} icon={Users} label="Clientes" onClick={setView} />
         <BottomNavItem view="menu" current={currentView} icon={Menu} label="Menu" onClick={setView} />
       </div>
     </div>
