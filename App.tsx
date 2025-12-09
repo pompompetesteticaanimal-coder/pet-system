@@ -1043,8 +1043,62 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                 {topTags.length > 0 && <div className="flex gap-1 mt-1 opacity-80">{topTags.map(t => <span key={t} className="text-[9px] bg-gray-100 px-1 rounded border border-gray-200">{t}</span>)}</div>}
             </button>
         );
-    })} </div>)} {selectedPet && (<div className="space-y-4"> <div className="space-y-1">
-        <label className="text-xs font-bold text-gray-400 uppercase">Serviço Principal</label> <select value={selectedService} onChange={e => setSelectedService(e.target.value)} className="w-full border p-3 rounded-xl bg-white text-base outline-none focus:border-brand-500"><option value="">Selecione...</option>{getApplicableServices('principal').map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)}</select> </div> <div className="space-y-1"> <label className="text-xs font-bold text-gray-400 uppercase">Serviço Adicional</label> <select className="w-full border p-3 rounded-xl bg-white text-base outline-none focus:border-brand-500" onChange={(e) => { const val = e.target.value; if (val && !selectedAddServices.includes(val)) setSelectedAddServices(prev => [...prev, val]); e.target.value = ''; }} > <option value="">Adicionar serviço...</option> {getApplicableServices('adicional').filter((service, index, self) => index === self.findIndex((t) => t.name === service.name)).map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)} </select> </div> <div className="flex flex-wrap gap-2 min-h-[30px]">{selectedAddServices.map(id => <span key={id} onClick={() => setSelectedAddServices(p => p.filter(x => x !== id))} className="bg-purple-50 border border-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-bold cursor-pointer hover:bg-purple-100 flex items-center gap-1">{services.find(s => s.id === id)?.name} <X size={12} /></span>)}</div> <div className="grid grid-cols-2 gap-3"><input type="date" value={date} onChange={e => setDate(e.target.value)} className="border p-3 rounded-xl text-base outline-none" /><select value={time} onChange={e => setTime(e.target.value)} className="border p-3 rounded-xl text-base outline-none">{timeOptions.map(t => <option key={t} value={t}>{t}</option>)}</select></div> <div className="space-y-1"><label className="text-xs font-bold text-gray-400 uppercase">Duração Estimada</label><select value={manualDuration} onChange={e => setManualDuration(e.target.value)} className="w-full border p-3 rounded-xl bg-white text-base outline-none focus:border-brand-500"><option value="0">Automático (pelo serviço)</option><option value="30">30 minutos</option><option value="60">1 hora</option><option value="90">1 hora e 30 min</option><option value="120">2 horas</option><option value="150">2 horas e 30 min</option><option value="180">3 horas</option><option value="240">4 horas</option></select></div> <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full border p-3 rounded-xl text-sm outline-none focus:border-gray-400" rows={3} placeholder="Observações..." /> </div>)} </div> <div className="p-4 border-t bg-gray-50 flex justify-end gap-3"> <button onClick={resetForm} className="px-5 py-3 text-gray-600 font-bold hover:bg-gray-200 rounded-xl text-sm transition">Cancelar</button> <button onClick={handleSave} disabled={!selectedClient || !selectedPet || !selectedService} className="px-8 py-3 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 text-sm shadow-lg shadow-brand-200 active:scale-95 transition">Salvar</button> </div> </div> </div>, document.body)} </div>);
+    })} </div>)} {selectedPet && (<div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Serviço Principal</label>
+            <div className="relative">
+                <select value={selectedService} onChange={e => setSelectedService(e.target.value)} className="w-full appearance-none bg-gray-50 hover:bg-white border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl p-4 text-gray-800 font-medium outline-none transition-all cursor-pointer">
+                    <option value="">Selecione o serviço...</option>{getApplicableServices('principal').map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+            </div>
+        </div>
+
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Serviço Adicional</label>
+            <div className="relative">
+                <select className="w-full appearance-none bg-gray-50 hover:bg-white border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl p-4 text-gray-800 font-medium outline-none transition-all cursor-pointer" onChange={(e) => { const val = e.target.value; if (val && !selectedAddServices.includes(val)) setSelectedAddServices(prev => [...prev, val]); e.target.value = ''; }} >
+                    <option value="">Adicionar extra...</option> {getApplicableServices('adicional').filter((service, index, self) => index === self.findIndex((t) => t.name === service.name)).map(s => <option key={s.id} value={s.id}>{s.name} - R${s.price}</option>)}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-brand-100 text-brand-600 rounded-lg p-1 pointer-events-none"><Plus size={14} strokeWidth={3} /></div>
+            </div>
+        </div>
+
+        {selectedAddServices.length > 0 && <div className="flex flex-wrap gap-2 min-h-[30px] animate-fade-in">{selectedAddServices.map(id => <span key={id} onClick={() => setSelectedAddServices(p => p.filter(x => x !== id))} className="bg-purple-100 text-purple-700 pl-3 pr-2 py-1.5 rounded-xl text-xs font-bold cursor-pointer hover:bg-red-100 hover:text-red-600 flex items-center gap-1 transition-colors select-none group border border-purple-200">{services.find(s => s.id === id)?.name} <X size={14} className="group-hover:scale-110" /></span>)}</div>}
+
+        <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Data</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full bg-gray-50 hover:bg-white border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl p-4 text-gray-800 font-semibold outline-none transition-all" />
+            </div>
+            <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Horário</label>
+                <div className="relative">
+                    <select value={time} onChange={e => setTime(e.target.value)} className="w-full appearance-none bg-gray-50 hover:bg-white border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl p-4 text-gray-800 font-semibold outline-none transition-all cursor-pointer">
+                        {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+                </div>
+            </div>
+        </div>
+
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Duração Estimada</label>
+            <div className="relative">
+                <select value={manualDuration} onChange={e => setManualDuration(e.target.value)} className="w-full appearance-none bg-gray-50 hover:bg-white border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl p-4 text-gray-800 font-medium outline-none transition-all cursor-pointer">
+                    <option value="0">Automático (baseado no serviço)</option><option value="30">30 minutos</option><option value="60">1 hora</option><option value="90">1 hora e 30 min</option><option value="120">2 horas</option><option value="150">2 horas e 30 min</option><option value="180">3 horas</option><option value="240">4 horas</option>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
+            </div>
+        </div>
+
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Observações</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full bg-gray-50 hover:bg-white border border-transparent focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl p-4 text-sm outline-none transition-all resize-none font-medium placeholder:text-gray-300" rows={3} placeholder="Alguma observação especial sobre o pet?" />
+        </div>
+
+    </div>)} </div> <div className="p-4 border-t border-gray-100 bg-white/50 backdrop-blur-sm flex justify-end gap-3 rounded-b-2xl"> <button onClick={resetForm} className="px-6 py-4 text-gray-500 font-bold hover:bg-gray-100 rounded-2xl text-sm transition">Cancelar</button> <button onClick={handleSave} disabled={!selectedClient || !selectedPet || !selectedService} className="px-8 py-4 bg-brand-600 text-white font-bold rounded-2xl hover:bg-brand-700 disabled:opacity-50 text-sm shadow-xl shadow-brand-200 hover:shadow-brand-300 hover:-translate-y-0.5 active:scale-95 transition-all flex items-center gap-2"> <Check size={20} strokeWidth={2.5} /> Confirmar Agendamento</button> </div> </div> </div>, document.body)} </div>);
 };
 
 // --- MENU VIEW (Mobile Only - 4th Tab) ---
