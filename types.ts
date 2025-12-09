@@ -44,7 +44,6 @@ export interface Appointment {
   googleEventId?: string; // ID para exclusão no Google Calendar
   paidAmount?: number; // Valor Pago
   paymentMethod?: 'Credito' | 'Debito' | 'Pix' | 'Dinheiro' | ''; // Forma de Pagamento
-  rating?: number; // 1-5 Estrelas
 }
 
 export interface CostItem {
