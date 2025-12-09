@@ -516,7 +516,23 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
 
 const ClientManager: React.FC<{ clients: Client[]; onDeleteClient: (id: string) => void; googleUser: GoogleUser | null; accessToken: string | null; }> = ({ clients, onDeleteClient }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const filteredClients = clients.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.pets.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))).sort((a, b) => a.name.localeCompare(b.name));
+    const [visibleCount, setVisibleCount] = useState(20);
+
+    // Reset visible count when search changes
+    useEffect(() => { setVisibleCount(20); }, [searchTerm]);
+
+    const filteredClients = useMemo(() => {
+        return clients.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.pets.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))).sort((a, b) => a.name.localeCompare(b.name));
+    }, [clients, searchTerm]);
+
+    const visibleClients = useMemo(() => filteredClients.slice(0, visibleCount), [filteredClients, visibleCount]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+        if (scrollHeight - scrollTop <= clientHeight + 100) {
+            setVisibleCount(prev => Math.min(prev + 20, filteredClients.length));
+        }
+    };
 
     return (
         <div className="space-y-6 animate-fade-in h-full flex flex-col pt-2">
@@ -531,9 +547,9 @@ const ClientManager: React.FC<{ clients: Client[]; onDeleteClient: (id: string) 
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1">
+            <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1" onScroll={handleScroll}>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredClients.map(client => (
+                    {visibleClients.map(client => (
                         <div key={client.id} className="bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-white/50 hover:shadow-glass hover:-translate-y-1 transition-all group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-8 bg-brand-50/50 rounded-bl-[40px] -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform duration-500" />
                             <div className="flex justify-between items-start mb-4 relative z-10">
@@ -556,6 +572,11 @@ const ClientManager: React.FC<{ clients: Client[]; onDeleteClient: (id: string) 
                             </div>
                         </div>
                     ))}
+                    {visibleCount < filteredClients.length && (
+                        <div className="col-span-full py-4 flex justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
