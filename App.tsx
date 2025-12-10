@@ -669,8 +669,8 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
                 const parts = app.id.split('_');
                 const index = parseInt(parts[1]);
                 const rowNumber = index + 1;
-                const range = `Agendamento!Q${rowNumber}:R${rowNumber}`;
-                const values = [finalAmount.toString().replace('.', ','), method];
+                const range = `Agendamento!P${rowNumber}:R${rowNumber}`;
+                const values = ['Pago', finalAmount.toString().replace('.', ','), method];
                 await googleService.updateSheetValues(accessToken, sheetId, range, values);
             } catch (e) {
                 console.error("Failed", e);
@@ -719,8 +719,9 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
             try {
                 const parts = app.id.split('_');
                 const row = parseInt(parts[1]) + 1;
-                // Update OBS (Col N) with [NÃO VEIO] marker
+                // Update OBS (Col N) with [NÃO VEIO] marker and Status (Col P)
                 await googleService.updateSheetValues(accessToken, sheetId, `Agendamento!N${row}`, [note]);
+                await googleService.updateSheetValues(accessToken, sheetId, `Agendamento!P${row}`, ['Não Veio']);
             } catch (e) { console.error(e); alert('Erro ao sincronizar status.'); }
         }
     };
@@ -1943,7 +1944,15 @@ const App: React.FC = () => {
                 const tagsMatch = notes.match(/\[Tags: (.*?)\]/);
                 if (tagsMatch && tagsMatch[1]) { ratingTags = tagsMatch[1].split(',').map(t => t.trim()); }
 
-                if (client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: 'agendado', notes: row[13], durationTotal: parseInt(row[14] || '60'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: googleEventId, rating: rating > 0 ? rating : undefined, ratingTags: ratingTags.length > 0 ? ratingTags : undefined }); }
+                let status: Appointment['status'] = 'agendado';
+                const statusRaw = row[15]?.toLowerCase().trim() || '';
+                if (statusRaw === 'não veio' || statusRaw === 'nao_veio') {
+                    status = 'nao_veio';
+                } else if (statusRaw === 'pago') {
+                    status = 'agendado'; // App considers paid via paidAmount, but let's keep status simple
+                }
+
+                if (client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: status, notes: row[13], durationTotal: parseInt(row[14] || '60'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: googleEventId, rating: rating > 0 ? rating : undefined, ratingTags: ratingTags.length > 0 ? ratingTags : undefined }); }
             }); if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); } if (loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if (!silent) alert(`${loadedApps.length} agendamentos carregados!`); } else { if (!silent) alert('Nenhum agendamento encontrado.'); }
         } catch (error) { console.error(error); if (!silent) alert('Erro ao sincronizar agendamentos.'); }
     };
@@ -1962,7 +1971,7 @@ const App: React.FC = () => {
                 const rowData = [
                     pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
                     appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Agendado', '', '', '', googleEventId
+                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Pendente', '', '', '', googleEventId
                 ];
                 await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
                 // Silent Sync to update IDs
@@ -1988,7 +1997,7 @@ const App: React.FC = () => {
                 const rowData = [
                     pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
                     appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Agendado', '', app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '', app.paymentMethod || '', googleEventId
+                    dateStr, timeStr, app.notes || '', totalDuration.toString(), (app.status === 'nao_veio' ? 'Não Veio' : (app.paidAmount ? 'Pago' : 'Pendente')), '', app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '', app.paymentMethod || '', googleEventId
                 ];
                 await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`, rowData);
             } catch (e) { console.error(e); alert("Erro ao atualizar planilha."); }
@@ -2023,7 +2032,7 @@ const App: React.FC = () => {
                 const idx = parseInt(app.id.split('_')[1]);
                 if (!isNaN(idx)) {
                     const row = idx + 1;
-                    await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!Q${row}:R${row}`, [['', '']]);
+                    await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!P${row}:R${row}`, [['Pendente', '', '']]);
                 }
             } catch (e) { console.error("Erro ao limpar pagamento:", e); alert("Erro ao sincronizar cancelamento de pagamento."); }
         }
