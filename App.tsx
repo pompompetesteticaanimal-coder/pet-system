@@ -1746,6 +1746,7 @@ const MenuView: React.FC<{ setView: (v: ViewState) => void, onOpenSettings: () =
 const App: React.FC = () => {
     // home is now used as a redirect or default view, but bottom nav handles specific views
     // Actually, let's keep 'home' as the default landing view which shows the Daily Revenue
+    const dateInputRef = useRef<HTMLInputElement>(null);
     const [currentView, setCurrentView] = useState<ViewState>('home');
     const [clients, setClients] = useState<Client[]>([]);
     const [services, setServices] = useState<Service[]>([]);
