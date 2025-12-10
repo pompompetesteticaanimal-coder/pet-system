@@ -484,14 +484,15 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
                 <section key={selectedDate} className={animationClass}>
                     <div className="sticky top-0 z-30 flex justify-between items-center mb-4 bg-white/90 backdrop-blur-md p-3 rounded-xl border border-gray-200 shadow-sm transition-all">
                         <h2 className="text-lg font-bold text-gray-800">Diário</h2>
-                        <div className="relative text-sm font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1 rounded-lg transition-colors cursor-pointer group flex items-center gap-1 z-50">
+                        <div className="relative text-sm font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1 rounded-lg transition-colors cursor-pointer group flex items-center gap-1 z-50" onClick={() => dateInputRef.current?.showPicker()}>
                             <span>{formatDateWithWeek(selectedDate)}</span>
                             <ChevronDown size={14} className="opacity-50" />
                             <input
+                                ref={dateInputRef}
                                 type="date"
                                 value={selectedDate}
                                 onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value); }}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-50"
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-50 pointer-events-none" // pointer-events-none to let click pass to parent handler
                             />
                         </div>
                     </div>
