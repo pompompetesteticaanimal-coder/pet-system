@@ -176,7 +176,7 @@ const CustomXAxisTick = ({ x, y, payload, data }: any) => {
     );
 };
 
-const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; clients: Client[]; costs: CostItem[]; defaultTab?: 'daily' | 'weekly' | 'monthly' | 'yearly' }> = ({ appointments, services, clients, costs, defaultTab = 'daily' }) => {
+const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; clients: Client[]; costs: CostItem[]; defaultTab?: 'daily' | 'weekly' | 'monthly' | 'yearly'; onRemovePayment: (app: Appointment) => void }> = ({ appointments, services, clients, costs, defaultTab = 'daily', onRemovePayment }) => {
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>(defaultTab);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -942,1100 +942,1107 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
     const resetForm = () => { setFormData({ name: '', price: '', category: 'principal', size: 'Todos', coat: 'Todos' }); setEditingService(null); setIsModalOpen(false); };
     const handleEditStart = (s: Service) => { setEditingService(s); setFormData({ name: s.name, price: s.price.toString(), category: s.category, size: s.targetSize || 'Todos', coat: s.targetCoat || 'Todos' }); setIsModalOpen(true); setContextMenu(null); };
     const handleSave = async () => { if (!accessToken || !sheetId) return alert('Necessário estar logado para salvar.'); const priceNum = parseFloat(formData.price.replace(',', '.')); const rowData = [formData.name, formData.category, formData.size, formData.coat, priceNum.toString().replace('.', ',')]; try { if (editingService) { const parts = editingService.id.split('_'); if (parts.length >= 3) { const index = parseInt(parts[2]); const row = index + 2; const range = `Serviço!A${row}:E${row}`; await googleService.updateSheetValues(accessToken, sheetId, range, rowData); } } else { await googleService.appendSheetValues(accessToken, sheetId, 'Serviço!A:E', rowData); } onSyncServices(true); resetForm(); } catch (e) { console.error(e); alert('Erro ao salvar na planilha.'); } };
-    const handleDelete = async (service: Service) => { if (!confirm(`Excluir ${service.name}?`)) return; setContextMenu(null); if (service.id.startsWith('sheet_svc_') && accessToken && sheetId) { const parts = service.id.split('_'); if (parts.length >= 3) { const index = parseInt(parts[2]); const row = index + 2; try { await googleService.clearSheetValues(accessToken, sheetId, `Serviço!A${row}:E${row}`); onSyncServices(true); return; } catch (e) { console.error(e); alert('Erro ao excluir da planilha.'); } } } onDeleteService(service.id); };
+    const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service) => void; onDeleteService: (id: string) => void; onSyncServices: (silent: boolean) => void; accessToken?: string; sheetId?: string }> = ({ services, onAddService, onDeleteService, onSyncServices, accessToken, sheetId }) => {
+        const [viewService, setViewService] = useState<Service | null>(null);
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [contextMenu, setContextMenu] = useState<{ x: number, y: number, service: Service } | null>(null);
+        const [newService, setNewService] = useState<Partial<Service>>({});
+        const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
 
-    return (
-        <div className="space-y-6 animate-fade-in h-full flex flex-col relative pt-2" onClick={() => setContextMenu(null)}>
-            <div className="flex justify-between items-center bg-white/60 backdrop-blur-md p-5 rounded-3xl border border-white/40 shadow-sm flex-shrink-0">
-                <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Serviços</h2>
-                <div className="flex gap-3">
-                    <button onClick={() => onSyncServices(false)} className="bg-white text-gray-600 border border-gray-200 px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold text-xs hover:bg-gray-50 shadow-sm transition"><Sparkles size={14} className="text-brand-500" /> Sincronizar</button>
-                    <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-brand-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold text-xs hover:bg-brand-700 shadow-lg shadow-brand-200 hover:scale-105 active:scale-95 transition"><Plus size={16} /> Adicionar</button>
+        // ... ServiceManager internal logic ...
+
+        return (
+            <div className="space-y-6 animate-fade-in h-full flex flex-col relative pt-2" onClick={() => setContextMenu(null)}>
+                <div className="flex justify-between items-center bg-white/60 backdrop-blur-md p-5 rounded-3xl border border-white/40 shadow-sm flex-shrink-0">
+                    <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Serviços</h2>
+                    <div className="flex gap-3">
+                        <button onClick={() => onSyncServices(false)} className="bg-white text-gray-600 border border-gray-200 px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold text-xs hover:bg-gray-50 shadow-sm transition"><Sparkles size={14} className="text-brand-500" /> Sincronizar</button>
+                        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-brand-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold text-xs hover:bg-brand-700 shadow-lg shadow-brand-200 hover:scale-105 active:scale-95 transition"><Plus size={16} /> Adicionar</button>
+                    </div>
                 </div>
-            </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {services.map((service, index) => (
-                        <div key={service.id} onClick={() => setViewService(service)} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-3xl shadow-sm border border-white/50 flex flex-col justify-between cursor-pointer hover:shadow-glass hover:scale-[1.02] transition-all duration-300 select-none group relative">
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500"><Edit2 size={12} /></div>
-                            </div>
-                            <div>
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-gray-800 text-base truncate pr-6 tracking-tight">{service.name}</h3>
+                <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {services.map((service, index) => (
+                            <div key={service.id} onClick={() => setViewService(service)} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-3xl shadow-sm border border-white/50 flex flex-col justify-between cursor-pointer hover:shadow-glass hover:scale-[1.02] transition-all duration-300 select-none group relative">
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500"><Edit2 size={12} /></div>
                                 </div>
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                    <span className={`text-[9px] px-2 py-1 rounded-lg uppercase font-bold tracking-wide ${service.category === 'principal' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>{service.category === 'principal' ? 'PRINC' : 'ADIC'}</span>
-                                    <span className="text-[9px] bg-gray-100 px-2 py-1 rounded-lg text-gray-500 font-medium border border-gray-100">{service.targetSize}</span>
-                                </div>
-                            </div>
-                            <div className="border-t border-gray-100/50 pt-3 flex justify-between items-end">
-                                <span className="text-xl font-black text-gray-900 tracking-tight">R$ {service.price.toFixed(2)}</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Service Details Modal */}
-            {viewService && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in" onClick={() => setViewService(null)}>
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
-                        <div className="p-6">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-1">{viewService.name}</h2>
-                            <p className="text-gray-500 text-sm mb-4">{viewService.description || 'Sem descrição.'}</p>
-
-                            <div className="flex gap-2 mb-6">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${viewService.category === 'principal' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{viewService.category}</span>
-                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 uppercase">{viewService.targetSize}</span>
-                            </div>
-
-                            <div className="flex justify-between items-center mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                 <div>
-                                    <span className="block text-xs uppercase font-bold text-gray-400">Preço</span>
-                                    <span className="text-xl font-black text-gray-900">R$ {viewService.price.toFixed(2)}</span>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="font-bold text-gray-800 text-base truncate pr-6 tracking-tight">{service.name}</h3>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mb-4">
+                                        <span className={`text-[9px] px-2 py-1 rounded-lg uppercase font-bold tracking-wide ${service.category === 'principal' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>{service.category === 'principal' ? 'PRINC' : 'ADIC'}</span>
+                                        <span className="text-[9px] bg-gray-100 px-2 py-1 rounded-lg text-gray-500 font-medium border border-gray-100">{service.targetSize}</span>
+                                    </div>
                                 </div>
-                                <div className="text-right">
-                                    <span className="block text-xs uppercase font-bold text-gray-400">Tempo</span>
-                                    <span className="text-xl font-black text-gray-900">{viewService.durationMin} min</span>
+                                <div className="border-t border-gray-100/50 pt-3 flex justify-between items-end">
+                                    <span className="text-xl font-black text-gray-900 tracking-tight">R$ {service.price.toFixed(2)}</span>
                                 </div>
                             </div>
-
-                            <div className="flex gap-3">
-                                <button onClick={() => setViewService(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl active:scale-95 transition-transform">Fechar</button>
-                                <button onClick={() => {
-                                    setNewService({ ...viewService });
-                                    setIsNewServiceModalOpen(true);
-                                    setViewService(null);
-                                }} className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-200 active:scale-95 transition-transform flex items-center justify-center gap-2">
-                                    <Edit2 size={16} /> Editar
-                                </button>
-                            </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
-            )}
 
-            {contextMenu && (
-                <div className="fixed bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 rounded-2xl z-[100] py-2 min-w-[170px] animate-scale-up glass-card" style={{ top: contextMenu.y, left: contextMenu.x }}>
-                    <button onClick={() => handleEditStart(contextMenu.service)} className="w-full text-left px-5 py-3 hover:bg-brand-50 text-gray-700 text-sm flex items-center gap-3 font-medium transition-colors"><Edit2 size={16} className="text-gray-400" /> Editar</button>
-                    <button onClick={() => handleDelete(contextMenu.service)} className="w-full text-left px-5 py-3 hover:bg-red-50 text-red-600 text-sm flex items-center gap-3 font-medium transition-colors"><Trash2 size={16} /> Excluir</button>
-                </div>
-            )}
+                {/* Service Details Modal */}
+                {viewService && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in" onClick={() => setViewService(null)}>
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
+                            <div className="p-6">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-1">{viewService.name}</h2>
+                                <p className="text-gray-500 text-sm mb-4">{viewService.description || 'Sem descrição.'}</p>
 
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
-                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 animate-scale-up relative overflow-hidden ring-1 ring-white/50">
-                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-400 to-purple-500" />
-                        <h3 className="text-2xl font-bold text-gray-900 tracking-tight">Gerenciar Serviço</h3>
-                        <div className="space-y-4">
-                            <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Nome do Serviço</label><input placeholder="Ex: Banho Premium" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all placeholder:font-normal" /></div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Preço (R$)</label><input placeholder="0,00" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all" /></div>
-                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Categoria</label><select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 ring-brand-200 outline-none transition-all appearance-none"><option value="principal">Principal</option><option value="adicional">Adicional</option></select></div>
-                            </div>
-                        </div>
-                        <div className="flex gap-3 justify-end mt-4 pt-4 border-t border-gray-100">
-                            <button onClick={resetForm} className="px-6 py-3 text-gray-500 hover:bg-gray-100 rounded-xl font-bold text-sm transition-colors">Cancelar</button>
-                            <button onClick={handleSave} className="px-8 py-3 bg-brand-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-brand-200 hover:bg-brand-700 hover:scale-105 active:scale-95 transition-all">Salvar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onAdd: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onUpdateStatus: (id: string, status: Appointment['status']) => void; onDelete: (id: string) => void; googleUser: GoogleUser | null; }> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete }) => {
-    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [detailsApp, setDetailsApp] = useState<Appointment | null>(null);
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, appId: string } | null>(null);
-
-    // App Form State
-    const [editingApp, setEditingApp] = useState<Appointment | null>(null);
-    const [editingAppId, setEditingAppId] = useState<string | null>(null);
-    const [clientSearch, setClientSearch] = useState('');
-    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [selectedPet, setSelectedPet] = useState<string | null>(null); // Pet ID
-    const [selectedService, setSelectedService] = useState<string>(''); // Service ID
-    const [selectedAddServices, setSelectedAddServices] = useState<string[]>([]); // Array of Service IDs
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [time, setTime] = useState('09:00');
-    const [manualDuration, setManualDuration] = useState<number | string>(0);
-    const [notes, setNotes] = useState('');
-
-    const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
-    const [nowMinutes, setNowMinutes] = useState(0);
-
-    useEffect(() => {
-        const updateNow = () => {
-            const now = new Date();
-            const mins = (now.getHours() - 8) * 60 + now.getMinutes();
-            setNowMinutes(mins);
-        };
-        updateNow();
-        const interval = setInterval(updateNow, 60000);
-        return () => clearInterval(interval);
-    }, []);
-    const touchStart = useRef<number | null>(null);
-
-    const resetForm = () => {
-        setEditingApp(null); setEditingAppId(null);
-        setSelectedClient(null); setSelectedPet(null);
-        setSelectedService(''); setSelectedAddServices([]);
-        setDate(new Date().toISOString().split('T')[0]); setTime('09:00');
-        setManualDuration(0); setNotes('');
-        setClientSearch('');
-        setIsModalOpen(false);
-    };
-
-    const handleStartEdit = (app: Appointment) => {
-        const client = clients.find(c => c.id === app.clientId);
-        setEditingApp(app); setEditingAppId(app.id);
-        setSelectedClient(client || null); setClientSearch(client?.name || '');
-        setSelectedPet(app.petId);
-        setSelectedService(app.serviceId); setSelectedAddServices(app.additionalServiceIds || []);
-        setDate(app.date.split('T')[0]); setTime(app.date.split('T')[1].substring(0, 5));
-        setManualDuration(app.durationTotal || 0); setNotes(app.notes || '');
-        setIsModalOpen(true); setDetailsApp(null); setContextMenu(null);
-    };
-
-    const handleSave = () => {
-        if (!selectedClient || !selectedPet || !selectedService || !date || !time) return;
-        const client = selectedClient; // selectedClient is now Client object
-        const pet = client?.pets.find(p => p.id === selectedPet);
-        const mainSvc = services.find(s => s.id === selectedService);
-        const addSvcs = selectedAddServices.map(id => services.find(s => s.id === id)).filter(s => s) as Service[];
-
-        if (client && pet && mainSvc) {
-            const newApp: Appointment = {
-                id: editingAppId || `local_${Date.now()}`,
-                clientId: client.id,
-                petId: pet.id,
-                serviceId: mainSvc.id,
-                additionalServiceIds: selectedAddServices,
-                date: `${date}T${time}:00`,
-                status: 'agendado',
-                notes: notes,
-                googleEventId: editingAppId ? appointments.find(a => a.id === editingAppId)?.googleEventId : undefined
-            };
-
-            if (editingAppId) {
-                const original = appointments.find(a => a.id === editingAppId);
-                newApp.paidAmount = original?.paidAmount;
-                newApp.paymentMethod = original?.paymentMethod;
-                onEdit(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
-            } else {
-                onAdd(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
-            }
-            resetForm();
-        }
-    };
-
-    const handleDeleteFromContext = () => { if (contextMenu && confirm('Excluir?')) onDelete(contextMenu.appId); setContextMenu(null); }
-    const filteredClients = useMemo(() => {
-        if (!clientSearch) return [];
-        const term = clientSearch.toLowerCase();
-        const termClean = term.replace(/\D/g, ''); // Digits only
-
-        const uniqueClients = new Map<string, Client>();
-
-        clients.forEach(c => {
-            const nameMatch = c.name.toLowerCase().includes(term);
-            const phoneRawMatch = c.phone.includes(clientSearch);
-            const phoneCleanMatch = termClean.length > 2 && c.phone.replace(/\D/g, '').includes(termClean);
-            const petMatch = c.pets.some(p => p.name.toLowerCase().includes(term));
-
-            if (nameMatch || phoneRawMatch || phoneCleanMatch || petMatch) {
-                const key = c.phone.replace(/\D/g, '') || c.id;
-                if (!uniqueClients.has(key)) uniqueClients.set(key, c);
-            }
-        });
-
-        return Array.from(uniqueClients.values()).slice(0, 20);
-    }, [clients, clientSearch]);
-    const selectedClientData = selectedClient; // selectedClient is now Client object
-    const pets = selectedClientData?.pets || [];
-    const selectedPetData = pets.find(p => p.id === selectedPet);
-
-    const getApplicableServices = (category: 'principal' | 'adicional') => { if (!selectedPetData) return []; return services.filter(s => { const matchesCategory = s.category === category; const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase())); const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase())); return matchesCategory && matchesSize && matchesCoat; }); };
-    const navigate = (direction: 'prev' | 'next') => {
-        setSlideDirection(direction === 'next' ? 'right' : 'left');
-        const newDate = new Date(currentDate);
-        if (viewMode === 'day') newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
-        if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
-        if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
-        setCurrentDate(newDate);
-    };
-    const timeOptions: string[] = []; for (let h = 8; h <= 19; h++) { ['00', '10', '20', '30', '40', '50'].forEach(m => { if (h === 19 && m !== '00') return; timeOptions.push(`${String(h).padStart(2, '0')}:${m}`); }); }
-
-
-
-    // --- SIDE-BY-SIDE LAYOUT ALGORITHM ---
-    const getLayout = (dayApps: Appointment[]) => {
-        const sorted = [...dayApps].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const nodes = sorted.map(app => { const start = new Date(app.date).getTime(); const end = start + (app.durationTotal || 60) * 60000; return { app, start, end }; });
-        const clusters: typeof nodes[] = [];
-        if (nodes.length > 0) {
-            let currentCluster = [nodes[0]];
-            let clusterEnd = nodes[0].end;
-            for (let i = 1; i < nodes.length; i++) {
-                if (nodes[i].start < clusterEnd) { currentCluster.push(nodes[i]); clusterEnd = Math.max(clusterEnd, nodes[i].end); } else { clusters.push(currentCluster); currentCluster = [nodes[i]]; clusterEnd = nodes[i].end; }
-            }
-            clusters.push(currentCluster);
-        }
-        const layoutResult: { app: Appointment, left: string, width: string, zIndex: number, topOffset: number, index: number, totalCount: number }[] = [];
-        clusters.forEach(cluster => {
-            // Cascading Layout: All overlapping items form a single group
-            // We shift each item slightly right and down to reveal headers
-            cluster.forEach((node, index) => {
-                const count = cluster.length;
-                // If it's a cluster, we cascade. If single, full width.
-                const isStack = count > 1;
-
-                layoutResult.push({
-                    app: node.app,
-                    left: isStack ? `${index * 15}%` : '0%', // Shift right for fan effect
-                    width: isStack ? '85%' : '100%', // Fixed high width to ensure readability & force scroll if container allows
-                    zIndex: 10 + index,
-                    // Reverted topOffset (User Requirement: Strict Start Time)
-                    topOffset: 0,
-                    // Stats for Overflow Indicator
-                    index: index,
-                    totalCount: count
-                });
-            });
-        });
-        return layoutResult;
-    };
-
-    // Updated Card with full requested info
-    const AppointmentCard = ({ app, style, onClick, onContext, stackIndex, stackTotal }: any) => {
-        const client = clients.find(c => c.id === app.clientId); const pet = client?.pets.find(p => p.id === app.petId); const mainSvc = services.find(srv => srv.id === app.serviceId); const addSvcs = app.additionalServiceIds?.map(id => services.find(s => s.id === id)).filter(x => x) as Service[] || []; const allServiceNames = [mainSvc?.name, ...addSvcs.map(s => s.name)].filter(n => n).join(' ').toLowerCase();
-
-        // WARNING: DO NOT CHANGE COLORS - Service Color Mapping (Fixed by User Request)
-        let colorClass = 'bg-blue-100 border-blue-200 text-blue-900'; // Default / Banho
-        if (allServiceNames.includes('tosa normal')) colorClass = 'bg-orange-100 border-orange-200 text-orange-900';
-        else if (allServiceNames.includes('tosa higi') || allServiceNames.includes('tosa higienica') || allServiceNames.includes('higi')) colorClass = 'bg-yellow-100 border-yellow-200 text-yellow-900';
-        else if (allServiceNames.includes('tesoura')) colorClass = 'bg-pink-100 border-pink-200 text-pink-900';
-        else if (allServiceNames.includes('pacote') && allServiceNames.includes('quinzenal')) colorClass = 'bg-indigo-100 border-indigo-200 text-indigo-900';
-        else if (allServiceNames.includes('pacote') && allServiceNames.includes('mensal')) colorClass = 'bg-purple-100 border-purple-200 text-purple-900';
-
-        // Calc Rating
-        let starsValues: number[] = [];
-        const petApps = appointments.filter(a => a.petId === app.petId && a.rating);
-        if (petApps.length > 0) starsValues = petApps.map(a => a.rating || 0);
-        const avgRating = starsValues.length > 0 ? starsValues.reduce((a, b) => a + b, 0) / starsValues.length : 0;
-
-        return (
-            <div style={style} className={`animate-pop absolute rounded-lg p-1.5 border shadow-sm ${colorClass} text-xs cursor-pointer hover:shadow-md hover:scale-[1.05] hover:z-[100] transition-all overflow-hidden flex flex-col justify-start leading-none group min-w-[200px]`} onClick={(e) => { e.stopPropagation(); onClick(app); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContext(e, app.id); }}>
-                {/* Header: Client & Pet */}
-                <div className="flex justify-between items-center mb-1 w-full">
-                    <span className="font-bold truncate text-[11px] flex-1">{client?.name.split(' ')[0]} - {pet?.name}</span>
-                    {avgRating > 0 && <div className="flex bg-white/60 px-1 rounded-md items-center ml-1"><Star size={8} className="fill-yellow-500 text-yellow-500" /><span className="text-[9px] font-bold ml-0.5 text-yellow-700">{avgRating.toFixed(1)}</span></div>}
-                </div>
-
-                {/* Body: Services */}
-                <div className="flex flex-col gap-0.5 opacity-90 w-full">
-                    {mainSvc && <div className="truncate font-semibold text-[10px]">{mainSvc.name}</div>}
-                    {addSvcs.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                            {addSvcs.map((s, i) => <span key={i} className="bg-white/40 px-1 rounded-[3px] text-[8px] truncate max-w-[80px]">{s.name}</span>)}
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
-    const renderDayView = () => {
-        const animationClass = slideDirection === 'right' ? 'animate-slide-right' : slideDirection === 'left' ? 'animate-slide-left' : '';
-        const dateStr = currentDate.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps);
-        return (
-            <div key={dateStr} className={`relative h-[1440px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`}>
-                <div className="w-14 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex-shrink-0 sticky left-0 z-10 flex flex-col"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="flex-1 border-b border-gray-100 text-[10px] text-gray-400 font-bold p-2 text-right relative"> <span className="-top-2.5 relative">{h}:00</span> </div>))} </div>
-                <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,rgba(243,244,246,0.6)_120px)] overflow-x-auto"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)}
-                    {/* Overflow Indicators Layer */}
-                    <div className="absolute top-0 right-0 h-full w-[60px] pointer-events-none z-50 flex flex-col items-end">
-                        {layoutItems.filter((item: any) => item.index === 0 && item.totalCount > 2).map((item: any) => {
-                            const startMin = (new Date(item.app.date).getHours() - 8) * 60 + new Date(item.app.date).getMinutes();
-                            const top = startMin * 2;
-                            return (
-                                <div key={`overflow-${item.app.id}`} className="absolute right-1 bg-red-500/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg flex items-center gap-0.5 animate-pulse" style={{ top: `${top + 5}px` }}>
-                                    +{item.totalCount - 2} <ChevronRight size={10} />
+                                <div className="flex gap-2 mb-6">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${viewService.category === 'principal' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{viewService.category}</span>
+                                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 uppercase">{viewService.targetSize}</span>
                                 </div>
-                            );
-                        })}
-                    </div>
-                    {layoutItems.map((item: any, idx) => {
-                        const app = item.app; const d = new Date(app.date); const startMin = (d.getHours() - 8) * 60 + d.getMinutes();
-                        const height = (app.durationTotal || 60) * 2;
-                        const top = startMin * 2; // Strict time positioning
 
-                        return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />);
-                    })}
-                    {/* Current Time Indicator */}
-                    {nowMinutes >= 0 && nowMinutes <= 720 && (
-                        <div className="absolute w-full border-t-2 border-red-500 border-dashed opacity-70 pointer-events-none z-20 flex items-center" style={{ top: `${nowMinutes * 2}px` }}>
-                            <div className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-r shadow-sm absolute -top-2.5 left-0">Agora</div>
-                            <div className="w-2 h-2 bg-red-500 rounded-full absolute -top-1 -right-1" />
+                                <div className="flex justify-between items-center mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                    <div>
+                                        <span className="block text-xs uppercase font-bold text-gray-400">Preço</span>
+                                        <span className="text-xl font-black text-gray-900">R$ {viewService.price.toFixed(2)}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="block text-xs uppercase font-bold text-gray-400">Tempo</span>
+                                        <span className="text-xl font-black text-gray-900">{viewService.durationMin} min</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={() => setViewService(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl active:scale-95 transition-transform">Fechar</button>
+                                    <button onClick={() => {
+                                        setNewService({ ...viewService });
+                                        setIsNewServiceModalOpen(true);
+                                        setViewService(null);
+                                    }} className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-200 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                                        <Edit2 size={16} /> Editar
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
-    const renderWeekView = () => {
-        const start = new Date(currentDate); start.setDate(start.getDate() - start.getDay()); const days = [2, 3, 4, 5, 6];
-        return (
-            <div className="flex h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex-col mx-1">
-                <div className="flex border-b border-gray-100 bg-gray-50/50 backdrop-blur-sm"> <div className="w-10 bg-transparent border-r border-gray-100"></div> {days.map(dIdx => { const d = new Date(start); d.setDate(d.getDate() + dIdx); const isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]; return (<div key={dIdx} className={`flex-1 text-center py-3 text-xs font-bold border-r border-gray-100 ${isToday ? 'bg-brand-50/50 text-brand-600' : 'text-gray-500'}`}> {d.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase()} <div className={`text-sm mt-0.5 ${isToday ? 'text-brand-700' : 'text-gray-800'}`}>{d.getDate()}</div> </div>) })} </div>
-                <div className="flex-1 overflow-y-auto relative flex"> <div className="w-10 bg-gray-50/30 border-r border-gray-100 flex-shrink-0 sticky left-0 z-10"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="h-[120px] border-b border-gray-100 text-[9px] text-gray-400 font-bold p-1 text-right relative bg-gray-50/30"> <span className="-top-2 relative">{h}</span> </div>))} </div> {days.map(dIdx => {
-                    const d = new Date(start); d.setDate(d.getDate() + dIdx); const dateStr = d.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps); return (<div key={dIdx} className="flex-1 border-r border-gray-50 relative min-w-[60px]"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)} {layoutItems.map((item: any, idx) => {
-                        const app = item.app; const ad = new Date(app.date); const startMin = (ad.getHours() - 8) * 60 + ad.getMinutes();
-                        const height = (app.durationTotal || 60) * 2;
-                        const top = startMin * 2; // Strict time
-
-                        return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />)
-                    })} </div>)
-                })} </div>
-            </div>
-        )
-    }
-
-    const renderMonthView = () => {
-        const year = currentDate.getFullYear(); const month = currentDate.getMonth(); const firstDay = new Date(year, month, 1); const startDay = firstDay.getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const slots = []; for (let i = 0; i < startDay; i++) slots.push(null); for (let i = 1; i <= daysInMonth; i++) slots.push(new Date(year, month, i));
-        return (<div className="h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col mx-1"> <div className="grid grid-cols-7 bg-gray-50/80 backdrop-blur-sm border-b border-gray-200"> {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => <div key={d} className="py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{d}</div>)} </div> <div className="flex-1 grid grid-cols-7 auto-rows-fr"> {slots.map((date, idx) => { if (!date) return <div key={`empty-${idx}`} className="bg-gray-50/30 border-b border-r border-gray-100" />; const dateStr = date.toISOString().split('T')[0]; const isToday = dateStr === new Date().toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado').sort((a, b) => a.date.localeCompare(b.date)); return (<div key={idx} className={`border-b border-r border-gray-100 p-1 flex flex-col transition-colors cursor-pointer hover:bg-brand-50/30 ${isToday ? 'bg-orange-50/30' : ''}`} onClick={() => { setDate(dateStr); setViewMode('day'); }}> <span className={`text-[10px] font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full transition-all ${isToday ? 'bg-brand-600 text-white shadow-md scale-110' : 'text-gray-500'}`}>{date.getDate()}</span> <div className="flex-1 overflow-hidden space-y-1"> {dayApps.slice(0, 3).map(app => (<div key={app.id} className="text-[9px] bg-white border border-gray-200 text-gray-700 rounded-md px-1.5 py-0.5 truncate font-medium shadow-sm"> {clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name} </div>))} {dayApps.length > 3 && <div className="text-[8px] text-gray-400 pl-1 font-medium">+ {dayApps.length - 3} mais</div>} </div> </div>) })} </div> </div>)
-    };
-
-    return (
-        <div className="space-y-3 animate-fade-in relative h-full flex flex-col">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-2 flex-shrink-0 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
-                    <div className="flex bg-gray-100 p-1 rounded-lg flex-shrink-0">
-                        <button onClick={() => setViewMode('day')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
-                        <button onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
-                        <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                        <button onClick={() => navigate('prev')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronLeft size={18} /></button>
-                        <div className="relative min-w-[100px] text-center cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors group">
-                            <span className="text-sm font-bold text-gray-800 group-hover:text-brand-600 block truncate">
-                                {formatDateWithWeek(currentDate.toISOString().split('T')[0])}
-                            </span>
-                            <input
-                                type="date"
-                                value={currentDate.toISOString().split('T')[0]}
-                                onChange={(e) => {
-                                    if (e.target.value) {
-                                        const [y, m, d] = e.target.value.split('-').map(Number);
-                                        setCurrentDate(new Date(y, m - 1, d));
-                                    }
-                                }}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                            />
-                        </div>
-                        <button onClick={() => navigate('next')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronRight size={18} /></button>
-                    </div>
-                </div>
-                <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full md:w-auto bg-brand-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md shadow-brand-200 hover:bg-brand-700 active:scale-95 transition flex items-center justify-center gap-1.5 text-xs">
-                    <Plus size={18} /> Novo Agendamento
-                </button>
-            </div>
-
-            <div className="flex-1 min-h-0 relative overflow-hidden">
-                {viewMode === 'day' && <div className="h-full overflow-y-auto">{renderDayView()}</div>}
-                {viewMode === 'week' && renderWeekView()}
-                {viewMode === 'month' && renderMonthView()}
+                )}
 
                 {contextMenu && (
-                    <div className="fixed bg-white shadow-xl border border-gray-200 rounded-xl z-[100] py-1 min-w-[160px] overflow-hidden"
-                        style={{ top: contextMenu.y, left: contextMenu.x }}>
-                        <button onClick={() => handleStartEdit(appointments.find(a => a.id === contextMenu.appId)!)} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm flex items-center gap-3 text-gray-700 font-medium border-b border-gray-50">
-                            <Edit2 size={16} /> Editar
-                        </button>
-                        <button onClick={handleDeleteFromContext} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 text-sm flex items-center gap-3 font-medium">
-                            <Trash2 size={16} /> Excluir
-                        </button>
+                    <div className="fixed bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 rounded-2xl z-[100] py-2 min-w-[170px] animate-scale-up glass-card" style={{ top: contextMenu.y, left: contextMenu.x }}>
+                        <button onClick={() => handleEditStart(contextMenu.service)} className="w-full text-left px-5 py-3 hover:bg-brand-50 text-gray-700 text-sm flex items-center gap-3 font-medium transition-colors"><Edit2 size={16} className="text-gray-400" /> Editar</button>
+                        <button onClick={() => handleDelete(contextMenu.service)} className="w-full text-left px-5 py-3 hover:bg-red-50 text-red-600 text-sm flex items-center gap-3 font-medium transition-colors"><Trash2 size={16} /> Excluir</button>
+                    </div>
+                )}
+
+                {isModalOpen && (
+                    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+                        <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 animate-scale-up relative overflow-hidden ring-1 ring-white/50">
+                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-400 to-purple-500" />
+                            <h3 className="text-2xl font-bold text-gray-900 tracking-tight">Gerenciar Serviço</h3>
+                            <div className="space-y-4">
+                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Nome do Serviço</label><input placeholder="Ex: Banho Premium" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all placeholder:font-normal" /></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Preço (R$)</label><input placeholder="0,00" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all" /></div>
+                                    <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Categoria</label><select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 ring-brand-200 outline-none transition-all appearance-none"><option value="principal">Principal</option><option value="adicional">Adicional</option></select></div>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 justify-end mt-4 pt-4 border-t border-gray-100">
+                                <button onClick={resetForm} className="px-6 py-3 text-gray-500 hover:bg-gray-100 rounded-xl font-bold text-sm transition-colors">Cancelar</button>
+                                <button onClick={handleSave} className="px-8 py-3 bg-brand-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-brand-200 hover:bg-brand-700 hover:scale-105 active:scale-95 transition-all">Salvar</button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
+        );
+    };
 
-            {detailsApp && createPortal((() => {
-                const client = clients.find(c => c.id === detailsApp.clientId);
-                const pet = client?.pets.find(p => p.id === detailsApp.petId);
-                const s = services.find(srv => srv.id === detailsApp.serviceId);
-                const addSvcs = detailsApp.additionalServiceIds?.map(id => services.find(srv => srv.id === id)).filter(x => x);
-                const rating = detailsApp.rating;
-                const tags = detailsApp.ratingTags;
+    const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onAdd: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onUpdateStatus: (id: string, status: Appointment['status']) => void; onDelete: (id: string) => void; googleUser: GoogleUser | null; }> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete }) => {
+        const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
+        const [currentDate, setCurrentDate] = useState(new Date());
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const [detailsApp, setDetailsApp] = useState<Appointment | null>(null);
+        const [contextMenu, setContextMenu] = useState<{ x: number, y: number, appId: string } | null>(null);
 
-                return (
-                    <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setDetailsApp(null)}>
-                        <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative animate-scale-up" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setDetailsApp(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full p-1"><X size={20} /></button>
+        // App Form State
+        const [editingApp, setEditingApp] = useState<Appointment | null>(null);
+        const [editingAppId, setEditingAppId] = useState<string | null>(null);
+        const [clientSearch, setClientSearch] = useState('');
+        const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+        const [selectedPet, setSelectedPet] = useState<string | null>(null); // Pet ID
+        const [selectedService, setSelectedService] = useState<string>(''); // Service ID
+        const [selectedAddServices, setSelectedAddServices] = useState<string[]>([]); // Array of Service IDs
+        const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+        const [time, setTime] = useState('09:00');
+        const [manualDuration, setManualDuration] = useState<number | string>(0);
+        const [notes, setNotes] = useState('');
 
-                            {(rating || tags) && (
-                                <div className="flex justify-center flex-col items-center mb-6 bg-yellow-50/50 p-4 rounded-2xl border border-yellow-100">
-                                    <div className="flex text-yellow-500 mb-2 drop-shadow-sm">
-                                        {[1, 2, 3, 4, 5].map(st => <Star key={st} size={24} className={(rating || 0) >= st ? "fill-current" : "text-gray-200"} strokeWidth={(rating || 0) >= st ? 0 : 2} />)}
+        const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
+        const [nowMinutes, setNowMinutes] = useState(0);
+
+        useEffect(() => {
+            const updateNow = () => {
+                const now = new Date();
+                const mins = (now.getHours() - 8) * 60 + now.getMinutes();
+                setNowMinutes(mins);
+            };
+            updateNow();
+            const interval = setInterval(updateNow, 60000);
+            return () => clearInterval(interval);
+        }, []);
+        const touchStart = useRef<number | null>(null);
+
+        const resetForm = () => {
+            setEditingApp(null); setEditingAppId(null);
+            setSelectedClient(null); setSelectedPet(null);
+            setSelectedService(''); setSelectedAddServices([]);
+            setDate(new Date().toISOString().split('T')[0]); setTime('09:00');
+            setManualDuration(0); setNotes('');
+            setClientSearch('');
+            setIsModalOpen(false);
+        };
+
+        const handleStartEdit = (app: Appointment) => {
+            const client = clients.find(c => c.id === app.clientId);
+            setEditingApp(app); setEditingAppId(app.id);
+            setSelectedClient(client || null); setClientSearch(client?.name || '');
+            setSelectedPet(app.petId);
+            setSelectedService(app.serviceId); setSelectedAddServices(app.additionalServiceIds || []);
+            setDate(app.date.split('T')[0]); setTime(app.date.split('T')[1].substring(0, 5));
+            setManualDuration(app.durationTotal || 0); setNotes(app.notes || '');
+            setIsModalOpen(true); setDetailsApp(null); setContextMenu(null);
+        };
+
+        const handleSave = () => {
+            if (!selectedClient || !selectedPet || !selectedService || !date || !time) return;
+            const client = selectedClient; // selectedClient is now Client object
+            const pet = client?.pets.find(p => p.id === selectedPet);
+            const mainSvc = services.find(s => s.id === selectedService);
+            const addSvcs = selectedAddServices.map(id => services.find(s => s.id === id)).filter(s => s) as Service[];
+
+            if (client && pet && mainSvc) {
+                const newApp: Appointment = {
+                    id: editingAppId || `local_${Date.now()}`,
+                    clientId: client.id,
+                    petId: pet.id,
+                    serviceId: mainSvc.id,
+                    additionalServiceIds: selectedAddServices,
+                    date: `${date}T${time}:00`,
+                    status: 'agendado',
+                    notes: notes,
+                    googleEventId: editingAppId ? appointments.find(a => a.id === editingAppId)?.googleEventId : undefined
+                };
+
+                if (editingAppId) {
+                    const original = appointments.find(a => a.id === editingAppId);
+                    newApp.paidAmount = original?.paidAmount;
+                    newApp.paymentMethod = original?.paymentMethod;
+                    onEdit(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
+                } else {
+                    onAdd(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
+                }
+                resetForm();
+            }
+        };
+
+        const handleDeleteFromContext = () => { if (contextMenu && confirm('Excluir?')) onDelete(contextMenu.appId); setContextMenu(null); }
+        const filteredClients = useMemo(() => {
+            if (!clientSearch) return [];
+            const term = clientSearch.toLowerCase();
+            const termClean = term.replace(/\D/g, ''); // Digits only
+
+            const uniqueClients = new Map<string, Client>();
+
+            clients.forEach(c => {
+                const nameMatch = c.name.toLowerCase().includes(term);
+                const phoneRawMatch = c.phone.includes(clientSearch);
+                const phoneCleanMatch = termClean.length > 2 && c.phone.replace(/\D/g, '').includes(termClean);
+                const petMatch = c.pets.some(p => p.name.toLowerCase().includes(term));
+
+                if (nameMatch || phoneRawMatch || phoneCleanMatch || petMatch) {
+                    const key = c.phone.replace(/\D/g, '') || c.id;
+                    if (!uniqueClients.has(key)) uniqueClients.set(key, c);
+                }
+            });
+
+            return Array.from(uniqueClients.values()).slice(0, 20);
+        }, [clients, clientSearch]);
+        const selectedClientData = selectedClient; // selectedClient is now Client object
+        const pets = selectedClientData?.pets || [];
+        const selectedPetData = pets.find(p => p.id === selectedPet);
+
+        const getApplicableServices = (category: 'principal' | 'adicional') => { if (!selectedPetData) return []; return services.filter(s => { const matchesCategory = s.category === category; const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase())); const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase())); return matchesCategory && matchesSize && matchesCoat; }); };
+        const navigate = (direction: 'prev' | 'next') => {
+            setSlideDirection(direction === 'next' ? 'right' : 'left');
+            const newDate = new Date(currentDate);
+            if (viewMode === 'day') newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
+            if (viewMode === 'week') newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+            if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+            setCurrentDate(newDate);
+        };
+        const timeOptions: string[] = []; for (let h = 8; h <= 19; h++) { ['00', '10', '20', '30', '40', '50'].forEach(m => { if (h === 19 && m !== '00') return; timeOptions.push(`${String(h).padStart(2, '0')}:${m}`); }); }
+
+
+
+        // --- SIDE-BY-SIDE LAYOUT ALGORITHM ---
+        const getLayout = (dayApps: Appointment[]) => {
+            const sorted = [...dayApps].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const nodes = sorted.map(app => { const start = new Date(app.date).getTime(); const end = start + (app.durationTotal || 60) * 60000; return { app, start, end }; });
+            const clusters: typeof nodes[] = [];
+            if (nodes.length > 0) {
+                let currentCluster = [nodes[0]];
+                let clusterEnd = nodes[0].end;
+                for (let i = 1; i < nodes.length; i++) {
+                    if (nodes[i].start < clusterEnd) { currentCluster.push(nodes[i]); clusterEnd = Math.max(clusterEnd, nodes[i].end); } else { clusters.push(currentCluster); currentCluster = [nodes[i]]; clusterEnd = nodes[i].end; }
+                }
+                clusters.push(currentCluster);
+            }
+            const layoutResult: { app: Appointment, left: string, width: string, zIndex: number, topOffset: number, index: number, totalCount: number }[] = [];
+            clusters.forEach(cluster => {
+                // Cascading Layout: All overlapping items form a single group
+                // We shift each item slightly right and down to reveal headers
+                cluster.forEach((node, index) => {
+                    const count = cluster.length;
+                    // If it's a cluster, we cascade. If single, full width.
+                    const isStack = count > 1;
+
+                    layoutResult.push({
+                        app: node.app,
+                        left: isStack ? `${index * 15}%` : '0%', // Shift right for fan effect
+                        width: isStack ? '85%' : '100%', // Fixed high width to ensure readability & force scroll if container allows
+                        zIndex: 10 + index,
+                        // Reverted topOffset (User Requirement: Strict Start Time)
+                        topOffset: 0,
+                        // Stats for Overflow Indicator
+                        index: index,
+                        totalCount: count
+                    });
+                });
+            });
+            return layoutResult;
+        };
+
+        // Updated Card with full requested info
+        const AppointmentCard = ({ app, style, onClick, onContext, stackIndex, stackTotal }: any) => {
+            const client = clients.find(c => c.id === app.clientId); const pet = client?.pets.find(p => p.id === app.petId); const mainSvc = services.find(srv => srv.id === app.serviceId); const addSvcs = app.additionalServiceIds?.map(id => services.find(s => s.id === id)).filter(x => x) as Service[] || []; const allServiceNames = [mainSvc?.name, ...addSvcs.map(s => s.name)].filter(n => n).join(' ').toLowerCase();
+
+            // WARNING: DO NOT CHANGE COLORS - Service Color Mapping (Fixed by User Request)
+            let colorClass = 'bg-blue-100 border-blue-200 text-blue-900'; // Default / Banho
+            if (allServiceNames.includes('tosa normal')) colorClass = 'bg-orange-100 border-orange-200 text-orange-900';
+            else if (allServiceNames.includes('tosa higi') || allServiceNames.includes('tosa higienica') || allServiceNames.includes('higi')) colorClass = 'bg-yellow-100 border-yellow-200 text-yellow-900';
+            else if (allServiceNames.includes('tesoura')) colorClass = 'bg-pink-100 border-pink-200 text-pink-900';
+            else if (allServiceNames.includes('pacote') && allServiceNames.includes('quinzenal')) colorClass = 'bg-indigo-100 border-indigo-200 text-indigo-900';
+            else if (allServiceNames.includes('pacote') && allServiceNames.includes('mensal')) colorClass = 'bg-purple-100 border-purple-200 text-purple-900';
+
+            // Calc Rating
+            let starsValues: number[] = [];
+            const petApps = appointments.filter(a => a.petId === app.petId && a.rating);
+            if (petApps.length > 0) starsValues = petApps.map(a => a.rating || 0);
+            const avgRating = starsValues.length > 0 ? starsValues.reduce((a, b) => a + b, 0) / starsValues.length : 0;
+
+            return (
+                <div style={style} className={`animate-pop absolute rounded-lg p-1.5 border shadow-sm ${colorClass} text-xs cursor-pointer hover:shadow-md hover:scale-[1.05] hover:z-[100] transition-all overflow-hidden flex flex-col justify-start leading-none group min-w-[200px]`} onClick={(e) => { e.stopPropagation(); onClick(app); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContext(e, app.id); }}>
+                    {/* Header: Client & Pet */}
+                    <div className="flex justify-between items-center mb-1 w-full">
+                        <span className="font-bold truncate text-[11px] flex-1">{client?.name.split(' ')[0]} - {pet?.name}</span>
+                        {avgRating > 0 && <div className="flex bg-white/60 px-1 rounded-md items-center ml-1"><Star size={8} className="fill-yellow-500 text-yellow-500" /><span className="text-[9px] font-bold ml-0.5 text-yellow-700">{avgRating.toFixed(1)}</span></div>}
+                    </div>
+
+                    {/* Body: Services */}
+                    <div className="flex flex-col gap-0.5 opacity-90 w-full">
+                        {mainSvc && <div className="truncate font-semibold text-[10px]">{mainSvc.name}</div>}
+                        {addSvcs.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                                {addSvcs.map((s, i) => <span key={i} className="bg-white/40 px-1 rounded-[3px] text-[8px] truncate max-w-[80px]">{s.name}</span>)}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const renderDayView = () => {
+            const animationClass = slideDirection === 'right' ? 'animate-slide-right' : slideDirection === 'left' ? 'animate-slide-left' : '';
+            const dateStr = currentDate.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps);
+            return (
+                <div key={dateStr} className={`relative h-[1440px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`}>
+                    <div className="w-14 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex-shrink-0 sticky left-0 z-10 flex flex-col"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="flex-1 border-b border-gray-100 text-[10px] text-gray-400 font-bold p-2 text-right relative"> <span className="-top-2.5 relative">{h}:00</span> </div>))} </div>
+                    <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,rgba(243,244,246,0.6)_120px)] overflow-x-auto"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)}
+                        {/* Overflow Indicators Layer */}
+                        <div className="absolute top-0 right-0 h-full w-[60px] pointer-events-none z-50 flex flex-col items-end">
+                            {layoutItems.filter((item: any) => item.index === 0 && item.totalCount > 2).map((item: any) => {
+                                const startMin = (new Date(item.app.date).getHours() - 8) * 60 + new Date(item.app.date).getMinutes();
+                                const top = startMin * 2;
+                                return (
+                                    <div key={`overflow-${item.app.id}`} className="absolute right-1 bg-red-500/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg flex items-center gap-0.5 animate-pulse" style={{ top: `${top + 5}px` }}>
+                                        +{item.totalCount - 2} <ChevronRight size={10} />
                                     </div>
-                                    {tags && tags.length > 0 && (
-                                        <div className="flex flex-wrap gap-2 justify-center">
-                                            {tags.map(t => <span key={t} className="px-3 py-1 bg-white text-yellow-700 rounded-full text-xs font-bold shadow-sm border border-yellow-100">{t}</span>)}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                );
+                            })}
+                        </div>
+                        {layoutItems.map((item: any, idx) => {
+                            const app = item.app; const d = new Date(app.date); const startMin = (d.getHours() - 8) * 60 + d.getMinutes();
+                            const height = (app.durationTotal || 60) * 2;
+                            const top = startMin * 2; // Strict time positioning
 
-                            <div className="mb-6 text-center">
-                                <h3 className="text-2xl font-bold text-gray-800">{pet?.name}</h3>
-                                <p className="text-gray-500 font-medium">{client?.name}</p>
+                            return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />);
+                        })}
+                        {/* Current Time Indicator */}
+                        {nowMinutes >= 0 && nowMinutes <= 720 && (
+                            <div className="absolute w-full border-t-2 border-red-500 border-dashed opacity-70 pointer-events-none z-20 flex items-center" style={{ top: `${nowMinutes * 2}px` }}>
+                                <div className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-r shadow-sm absolute -top-2.5 left-0">Agora</div>
+                                <div className="w-2 h-2 bg-red-500 rounded-full absolute -top-1 -right-1" />
                             </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
 
-                            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 text-sm mb-6">
-                                <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><Phone size={16} /></div><span className="font-medium text-gray-700">{client?.phone}</span></div>
-                                <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center"><MapPin size={16} /></div><span className="font-medium text-gray-700 truncate">{client?.address} {client?.complement}</span></div>
-                                <div className="flex items-start gap-3"><div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0"><FileText size={16} /></div><span className="font-medium italic text-gray-600 pt-1">{
-                                    (() => {
-                                        let displayNote = detailsApp.notes || pet?.notes || 'Sem obs';
-                                        displayNote = displayNote.replace(/\[Avaliação: \d+\/5\]/g, '').replace(/\[Tags: .*?\]/g, '').trim();
-                                        return displayNote || 'Sem obs';
-                                    })()
-                                }</span></div>
+        const renderWeekView = () => {
+            const start = new Date(currentDate); start.setDate(start.getDate() - start.getDay()); const days = [2, 3, 4, 5, 6];
+            return (
+                <div className="flex h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex-col mx-1">
+                    <div className="flex border-b border-gray-100 bg-gray-50/50 backdrop-blur-sm"> <div className="w-10 bg-transparent border-r border-gray-100"></div> {days.map(dIdx => { const d = new Date(start); d.setDate(d.getDate() + dIdx); const isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]; return (<div key={dIdx} className={`flex-1 text-center py-3 text-xs font-bold border-r border-gray-100 ${isToday ? 'bg-brand-50/50 text-brand-600' : 'text-gray-500'}`}> {d.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase()} <div className={`text-sm mt-0.5 ${isToday ? 'text-brand-700' : 'text-gray-800'}`}>{d.getDate()}</div> </div>) })} </div>
+                    <div className="flex-1 overflow-y-auto relative flex"> <div className="w-10 bg-gray-50/30 border-r border-gray-100 flex-shrink-0 sticky left-0 z-10"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="h-[120px] border-b border-gray-100 text-[9px] text-gray-400 font-bold p-1 text-right relative bg-gray-50/30"> <span className="-top-2 relative">{h}</span> </div>))} </div> {days.map(dIdx => {
+                        const d = new Date(start); d.setDate(d.getDate() + dIdx); const dateStr = d.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps); return (<div key={dIdx} className="flex-1 border-r border-gray-50 relative min-w-[60px]"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)} {layoutItems.map((item: any, idx) => {
+                            const app = item.app; const ad = new Date(app.date); const startMin = (ad.getHours() - 8) * 60 + ad.getMinutes();
+                            const height = (app.durationTotal || 60) * 2;
+                            const top = startMin * 2; // Strict time
+
+                            return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />)
+                        })} </div>)
+                    })} </div>
+                </div>
+            )
+        }
+
+        const renderMonthView = () => {
+            const year = currentDate.getFullYear(); const month = currentDate.getMonth(); const firstDay = new Date(year, month, 1); const startDay = firstDay.getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const slots = []; for (let i = 0; i < startDay; i++) slots.push(null); for (let i = 1; i <= daysInMonth; i++) slots.push(new Date(year, month, i));
+            return (<div className="h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col mx-1"> <div className="grid grid-cols-7 bg-gray-50/80 backdrop-blur-sm border-b border-gray-200"> {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => <div key={d} className="py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{d}</div>)} </div> <div className="flex-1 grid grid-cols-7 auto-rows-fr"> {slots.map((date, idx) => { if (!date) return <div key={`empty-${idx}`} className="bg-gray-50/30 border-b border-r border-gray-100" />; const dateStr = date.toISOString().split('T')[0]; const isToday = dateStr === new Date().toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado').sort((a, b) => a.date.localeCompare(b.date)); return (<div key={idx} className={`border-b border-r border-gray-100 p-1 flex flex-col transition-colors cursor-pointer hover:bg-brand-50/30 ${isToday ? 'bg-orange-50/30' : ''}`} onClick={() => { setDate(dateStr); setViewMode('day'); }}> <span className={`text-[10px] font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full transition-all ${isToday ? 'bg-brand-600 text-white shadow-md scale-110' : 'text-gray-500'}`}>{date.getDate()}</span> <div className="flex-1 overflow-hidden space-y-1"> {dayApps.slice(0, 3).map(app => (<div key={app.id} className="text-[9px] bg-white border border-gray-200 text-gray-700 rounded-md px-1.5 py-0.5 truncate font-medium shadow-sm"> {clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name} </div>))} {dayApps.length > 3 && <div className="text-[8px] text-gray-400 pl-1 font-medium">+ {dayApps.length - 3} mais</div>} </div> </div>) })} </div> </div>)
+        };
+
+        return (
+            <div className="space-y-3 animate-fade-in relative h-full flex flex-col">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-2 flex-shrink-0 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+                    <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+                        <div className="flex bg-gray-100 p-1 rounded-lg flex-shrink-0">
+                            <button onClick={() => setViewMode('day')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
+                            <button onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
+                            <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            <button onClick={() => navigate('prev')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronLeft size={18} /></button>
+                            <div className="relative min-w-[100px] text-center cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors group">
+                                <span className="text-sm font-bold text-gray-800 group-hover:text-brand-600 block truncate">
+                                    {formatDateWithWeek(currentDate.toISOString().split('T')[0])}
+                                </span>
+                                <input
+                                    type="date"
+                                    value={currentDate.toISOString().split('T')[0]}
+                                    onChange={(e) => {
+                                        if (e.target.value) {
+                                            const [y, m, d] = e.target.value.split('-').map(Number);
+                                            setCurrentDate(new Date(y, m - 1, d));
+                                        }
+                                    }}
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                />
                             </div>
-
-                            <div className="mb-6">
-                                <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Serviços</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className="px-3 py-1.5 bg-brand-100 text-brand-700 rounded-lg text-xs font-bold shadow-sm">{s?.name}</span>
-                                    {addSvcs?.map(as => <span key={as?.id} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold border border-gray-200">{as?.name}</span>)}
-                                </div>
-                            </div>
-
-                            <button onClick={() => handleStartEdit(detailsApp)} className="w-full py-3.5 bg-brand-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-95 transition shadow-lg shadow-brand-200"><Edit2 size={18} /> Editar Agendamento</button>
+                            <button onClick={() => navigate('next')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronRight size={18} /></button>
                         </div>
                     </div>
-                );
-            })(), document.body)}
+                    <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full md:w-auto bg-brand-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md shadow-brand-200 hover:bg-brand-700 active:scale-95 transition flex items-center justify-center gap-1.5 text-xs">
+                        <Plus size={18} /> Novo Agendamento
+                    </button>
+                </div>
 
-            {isModalOpen && createPortal(
-                <div className="fixed inset-0 bg-black/60 z-[60] flex items-end md:items-center justify-center md:p-6 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-[#ffffff] md:rounded-3xl rounded-none w-full max-w-6xl h-[100dvh] md:h-[90vh] md:max-h-[800px] shadow-2xl flex flex-col overflow-hidden animate-scale-up ring-1 ring-black/5 font-sans">
-                        {/* Header */}
-                        <div className="px-5 py-4 md:px-8 md:py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
-                            <div>
-                                <h2 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
-                                <p className="text-xs md:text-sm text-gray-400 font-medium mt-0.5">Preencha os detalhes do serviço abaixo</p>
-                            </div>
-                            <button onClick={resetForm} className="p-2.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all duration-300"><X size={24} /></button>
+                <div className="flex-1 min-h-0 relative overflow-hidden">
+                    {viewMode === 'day' && <div className="h-full overflow-y-auto">{renderDayView()}</div>}
+                    {viewMode === 'week' && renderWeekView()}
+                    {viewMode === 'month' && renderMonthView()}
+
+                    {contextMenu && (
+                        <div className="fixed bg-white shadow-xl border border-gray-200 rounded-xl z-[100] py-1 min-w-[160px] overflow-hidden"
+                            style={{ top: contextMenu.y, left: contextMenu.x }}>
+                            <button onClick={() => handleStartEdit(appointments.find(a => a.id === contextMenu.appId)!)} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm flex items-center gap-3 text-gray-700 font-medium border-b border-gray-50">
+                                <Edit2 size={16} /> Editar
+                            </button>
+                            <button onClick={handleDeleteFromContext} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 text-sm flex items-center gap-3 font-medium">
+                                <Trash2 size={16} /> Excluir
+                            </button>
                         </div>
+                    )}
+                </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 bg-gray-50/50">
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto h-full">
+                {detailsApp && createPortal((() => {
+                    const client = clients.find(c => c.id === detailsApp.clientId);
+                    const pet = client?.pets.find(p => p.id === detailsApp.petId);
+                    const s = services.find(srv => srv.id === detailsApp.serviceId);
+                    const addSvcs = detailsApp.additionalServiceIds?.map(id => services.find(srv => srv.id === id)).filter(x => x);
+                    const rating = detailsApp.rating;
+                    const tags = detailsApp.ratingTags;
 
-                                {/* LEFT COLUMN: Client & Pet (40%) */}
-                                <div className="lg:col-span-5 space-y-6 flex flex-col h-full">
-                                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/80 flex-1 flex flex-col">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="w-10 h-10 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center"><User size={20} /></div>
-                                            <h3 className="text-lg font-bold text-gray-800">Cliente & Pet</h3>
+                    return (
+                        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setDetailsApp(null)}>
+                            <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative animate-scale-up" onClick={e => e.stopPropagation()}>
+                                <button onClick={() => setDetailsApp(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full p-1"><X size={20} /></button>
+
+                                {(rating || tags) && (
+                                    <div className="flex justify-center flex-col items-center mb-6 bg-yellow-50/50 p-4 rounded-2xl border border-yellow-100">
+                                        <div className="flex text-yellow-500 mb-2 drop-shadow-sm">
+                                            {[1, 2, 3, 4, 5].map(st => <Star key={st} size={24} className={(rating || 0) >= st ? "fill-current" : "text-gray-200"} strokeWidth={(rating || 0) >= st ? 0 : 2} />)}
                                         </div>
+                                        {tags && tags.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 justify-center">
+                                                {tags.map(t => <span key={t} className="px-3 py-1 bg-white text-yellow-700 rounded-full text-xs font-bold shadow-sm border border-yellow-100">{t}</span>)}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                                        <div className="space-y-6 flex-1">
-                                            {/* Client Search */}
-                                            <div className="relative group z-30">
-                                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block ml-1">Buscar Cliente</label>
-                                                <div className="relative">
-                                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors" size={18} />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Nome, telefone ou pet..."
-                                                        value={clientSearch}
-                                                        onChange={e => { setClientSearch(e.target.value); setSelectedClient(null); setSelectedPet(null); }}
-                                                        className="w-full pl-11 pr-4 py-3.5 bg-gray-50 hover:bg-white focus:bg-white border border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl text-sm font-semibold text-gray-700 outline-none transition-all placeholder:font-normal placeholder:text-gray-400"
-                                                    />
+                                <div className="mb-6 text-center">
+                                    <h3 className="text-2xl font-bold text-gray-800">{pet?.name}</h3>
+                                    <p className="text-gray-500 font-medium">{client?.name}</p>
+                                </div>
+
+                                <div className="bg-gray-50 rounded-2xl p-4 space-y-3 text-sm mb-6">
+                                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><Phone size={16} /></div><span className="font-medium text-gray-700">{client?.phone}</span></div>
+                                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center"><MapPin size={16} /></div><span className="font-medium text-gray-700 truncate">{client?.address} {client?.complement}</span></div>
+                                    <div className="flex items-start gap-3"><div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0"><FileText size={16} /></div><span className="font-medium italic text-gray-600 pt-1">{
+                                        (() => {
+                                            let displayNote = detailsApp.notes || pet?.notes || 'Sem obs';
+                                            displayNote = displayNote.replace(/\[Avaliação: \d+\/5\]/g, '').replace(/\[Tags: .*?\]/g, '').trim();
+                                            return displayNote || 'Sem obs';
+                                        })()
+                                    }</span></div>
+                                </div>
+
+                                <div className="mb-6">
+                                    <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Serviços</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className="px-3 py-1.5 bg-brand-100 text-brand-700 rounded-lg text-xs font-bold shadow-sm">{s?.name}</span>
+                                        {addSvcs?.map(as => <span key={as?.id} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold border border-gray-200">{as?.name}</span>)}
+                                    </div>
+                                </div>
+
+                                <button onClick={() => handleStartEdit(detailsApp)} className="w-full py-3.5 bg-brand-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-95 transition shadow-lg shadow-brand-200"><Edit2 size={18} /> Editar Agendamento</button>
+                            </div>
+                        </div>
+                    );
+                })(), document.body)}
+
+                {isModalOpen && createPortal(
+                    <div className="fixed inset-0 bg-black/60 z-[60] flex items-end md:items-center justify-center md:p-6 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-[#ffffff] md:rounded-3xl rounded-none w-full max-w-6xl h-[100dvh] md:h-[90vh] md:max-h-[800px] shadow-2xl flex flex-col overflow-hidden animate-scale-up ring-1 ring-black/5 font-sans">
+                            {/* Header */}
+                            <div className="px-5 py-4 md:px-8 md:py-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
+                                <div>
+                                    <h2 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">{editingAppId ? 'Editar Agendamento' : 'Novo Agendamento'}</h2>
+                                    <p className="text-xs md:text-sm text-gray-400 font-medium mt-0.5">Preencha os detalhes do serviço abaixo</p>
+                                </div>
+                                <button onClick={resetForm} className="p-2.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all duration-300"><X size={24} /></button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 bg-gray-50/50">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto h-full">
+
+                                    {/* LEFT COLUMN: Client & Pet (40%) */}
+                                    <div className="lg:col-span-5 space-y-6 flex flex-col h-full">
+                                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/80 flex-1 flex flex-col">
+                                            <div className="flex items-center gap-3 mb-6">
+                                                <div className="w-10 h-10 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center"><User size={20} /></div>
+                                                <h3 className="text-lg font-bold text-gray-800">Cliente & Pet</h3>
+                                            </div>
+
+                                            <div className="space-y-6 flex-1">
+                                                {/* Client Search */}
+                                                <div className="relative group z-30">
+                                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block ml-1">Buscar Cliente</label>
+                                                    <div className="relative">
+                                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors" size={18} />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Nome, telefone ou pet..."
+                                                            value={clientSearch}
+                                                            onChange={e => { setClientSearch(e.target.value); setSelectedClient(null); setSelectedPet(null); }}
+                                                            className="w-full pl-11 pr-4 py-3.5 bg-gray-50 hover:bg-white focus:bg-white border border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl text-sm font-semibold text-gray-700 outline-none transition-all placeholder:font-normal placeholder:text-gray-400"
+                                                        />
+                                                    </div>
+
+                                                    {/* Dropdown Results */}
+                                                    {clientSearch && !selectedClient && (
+                                                        <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-2xl mt-2 border border-gray-100 max-h-64 overflow-y-auto custom-scrollbar animate-slide-up-sm">
+                                                            {filteredClients.length > 0 ? (
+                                                                filteredClients.map(c => (
+                                                                    <div key={c.id} onClick={() => { setSelectedClient(c); setClientSearch(c.name); }} className="p-4 hover:bg-brand-50/30 cursor-pointer border-b border-gray-50 last:border-0 transition-colors group/item">
+                                                                        <div className="flex justify-between items-center mb-1">
+                                                                            <span className="font-bold text-gray-800 group-hover/item:text-brand-700 transition-colors">{c.name}</span>
+                                                                            <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">{c.phone}</span>
+                                                                        </div>
+                                                                        <div className="flex gap-2 flex-wrap mt-1.5">
+                                                                            {c.pets.slice(0, 5).map(p => (
+                                                                                <span key={p.id} className="text-[11px] bg-brand-50 text-brand-700 border border-brand-100 px-2 py-0.5 rounded-md font-bold shadow-sm">{p.name}</span>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            ) : (
+                                                                <div className="p-8 text-center text-gray-400 text-sm font-medium flex flex-col items-center gap-2">
+                                                                    <AlertCircle size={24} className="opacity-20" />
+                                                                    Nenhum cliente encontrado
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
 
-                                                {/* Dropdown Results */}
-                                                {clientSearch && !selectedClient && (
-                                                    <div className="absolute top-full left-0 right-0 bg-white shadow-xl rounded-2xl mt-2 border border-gray-100 max-h-64 overflow-y-auto custom-scrollbar animate-slide-up-sm">
-                                                        {filteredClients.length > 0 ? (
-                                                            filteredClients.map(c => (
-                                                                <div key={c.id} onClick={() => { setSelectedClient(c); setClientSearch(c.name); }} className="p-4 hover:bg-brand-50/30 cursor-pointer border-b border-gray-50 last:border-0 transition-colors group/item">
-                                                                    <div className="flex justify-between items-center mb-1">
-                                                                        <span className="font-bold text-gray-800 group-hover/item:text-brand-700 transition-colors">{c.name}</span>
-                                                                        <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">{c.phone}</span>
-                                                                    </div>
-                                                                    <div className="flex gap-2 flex-wrap mt-1.5">
-                                                                        {c.pets.slice(0, 5).map(p => (
-                                                                            <span key={p.id} className="text-[11px] bg-brand-50 text-brand-700 border border-brand-100 px-2 py-0.5 rounded-md font-bold shadow-sm">{p.name}</span>
-                                                                        ))}
-                                                                    </div>
+                                                {/* Selected Client Display */}
+                                                {selectedClient && (
+                                                    <div className="animate-fade-in space-y-6">
+                                                        <div className="p-4 bg-brand-50/50 rounded-2xl border border-brand-100 flex items-start gap-4">
+                                                            <div className="w-12 h-12 rounded-full bg-white text-brand-600 flex items-center justify-center font-bold text-lg shadow-sm">{selectedClient.name[0]}</div>
+                                                            <div>
+                                                                <h4 className="font-bold text-gray-900">{selectedClient.name}</h4>
+                                                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                                                    <Phone size={12} /> {selectedClient.phone}
                                                                 </div>
-                                                            ))
-                                                        ) : (
-                                                            <div className="p-8 text-center text-gray-400 text-sm font-medium flex flex-col items-center gap-2">
-                                                                <AlertCircle size={24} className="opacity-20" />
-                                                                Nenhum cliente encontrado
+                                                                <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                                                                    <MapPin size={12} /> {selectedClient.address || 'Sem endereço'}
+                                                                </div>
                                                             </div>
-                                                        )}
+                                                            <button onClick={() => { setSelectedClient(null); setSelectedPet(null); setClientSearch(''); }} className="ml-auto text-gray-400 hover:text-red-500 transition"><X size={16} /></button>
+                                                        </div>
+
+                                                        {/* Pet Selection Grid */}
+                                                        <div>
+                                                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block ml-1">Selecionar Pet</label>
+                                                            <div className="space-y-2">
+                                                                {selectedClient.pets.map(p => {
+                                                                    const pApps = appointments.filter(a => a.petId === p.id && a.rating);
+                                                                    const pAvg = pApps.length > 0 ? pApps.reduce((acc, curr) => acc + (curr.rating || 0), 0) / pApps.length : 0;
+                                                                    return (
+                                                                        <div
+                                                                            key={p.id}
+                                                                            onClick={() => setSelectedPet(p.id)}
+                                                                            className={`group p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex items-center justify-between ${selectedPet === p.id
+                                                                                ? 'border-brand-500 bg-brand-50 shadow-md transform scale-[1.02]'
+                                                                                : 'border-gray-100 hover:border-brand-200 bg-white hover:bg-gray-50'}`}
+                                                                        >
+                                                                            <div className="flex items-center gap-4">
+                                                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedPet === p.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-brand-100 group-hover:text-brand-500'}`}>
+                                                                                    <PawPrint size={18} />
+                                                                                </div>
+                                                                                <div>
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <h5 className={`font-bold text-sm ${selectedPet === p.id ? 'text-brand-900' : 'text-gray-700'}`}>{p.name}</h5>
+                                                                                        {pAvg > 0 && (
+                                                                                            <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 py-0.5 rounded-md border border-yellow-100">
+                                                                                                <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                                                                                <span className="text-[10px] font-bold text-yellow-600">{pAvg.toFixed(1)}</span>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <p className="text-xs text-gray-500 font-medium">{p.breed} • {p.size || '?'} • {p.coat || '?'}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPet === p.id ? 'border-brand-500 bg-brand-500' : 'border-gray-200'}`}>
+                                                                                {selectedPet === p.id && <Check size={12} className="text-white" strokeWidth={4} />}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                <button className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 font-bold text-xs hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50/50 transition-all flex items-center justify-center gap-2">
+                                                                    <Plus size={16} /> Adicionar Novo Pet
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
-
-                                            {/* Selected Client Display */}
-                                            {selectedClient && (
-                                                <div className="animate-fade-in space-y-6">
-                                                    <div className="p-4 bg-brand-50/50 rounded-2xl border border-brand-100 flex items-start gap-4">
-                                                        <div className="w-12 h-12 rounded-full bg-white text-brand-600 flex items-center justify-center font-bold text-lg shadow-sm">{selectedClient.name[0]}</div>
-                                                        <div>
-                                                            <h4 className="font-bold text-gray-900">{selectedClient.name}</h4>
-                                                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                                                                <Phone size={12} /> {selectedClient.phone}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
-                                                                <MapPin size={12} /> {selectedClient.address || 'Sem endereço'}
-                                                            </div>
-                                                        </div>
-                                                        <button onClick={() => { setSelectedClient(null); setSelectedPet(null); setClientSearch(''); }} className="ml-auto text-gray-400 hover:text-red-500 transition"><X size={16} /></button>
-                                                    </div>
-
-                                                    {/* Pet Selection Grid */}
-                                                    <div>
-                                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 block ml-1">Selecionar Pet</label>
-                                                        <div className="space-y-2">
-                                                            {selectedClient.pets.map(p => {
-                                                                const pApps = appointments.filter(a => a.petId === p.id && a.rating);
-                                                                const pAvg = pApps.length > 0 ? pApps.reduce((acc, curr) => acc + (curr.rating || 0), 0) / pApps.length : 0;
-                                                                return (
-                                                                    <div
-                                                                        key={p.id}
-                                                                        onClick={() => setSelectedPet(p.id)}
-                                                                        className={`group p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex items-center justify-between ${selectedPet === p.id
-                                                                            ? 'border-brand-500 bg-brand-50 shadow-md transform scale-[1.02]'
-                                                                            : 'border-gray-100 hover:border-brand-200 bg-white hover:bg-gray-50'}`}
-                                                                    >
-                                                                        <div className="flex items-center gap-4">
-                                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedPet === p.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-brand-100 group-hover:text-brand-500'}`}>
-                                                                                <PawPrint size={18} />
-                                                                            </div>
-                                                                            <div>
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <h5 className={`font-bold text-sm ${selectedPet === p.id ? 'text-brand-900' : 'text-gray-700'}`}>{p.name}</h5>
-                                                                                    {pAvg > 0 && (
-                                                                                        <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 py-0.5 rounded-md border border-yellow-100">
-                                                                                            <Star size={10} className="fill-yellow-400 text-yellow-400" />
-                                                                                            <span className="text-[10px] font-bold text-yellow-600">{pAvg.toFixed(1)}</span>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </div>
-                                                                                <p className="text-xs text-gray-500 font-medium">{p.breed} • {p.size || '?'} • {p.coat || '?'}</p>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPet === p.id ? 'border-brand-500 bg-brand-500' : 'border-gray-200'}`}>
-                                                                            {selectedPet === p.id && <Check size={12} className="text-white" strokeWidth={4} />}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            <button className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 font-bold text-xs hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50/50 transition-all flex items-center justify-center gap-2">
-                                                                <Plus size={16} /> Adicionar Novo Pet
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* RIGHT COLUMN: Services & Details (60%) */}
-                                <div className="lg:col-span-7 space-y-6 flex flex-col h-full bg-white rounded-3xl shadow-sm border border-gray-100/80 p-6 relative">
-                                    {!selectedPet && (
-                                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-3xl">
-                                            <div className="text-gray-400 font-medium flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-sm border border-gray-100">
-                                                <ArrowRightLeft size={16} /> Selecione um pet primeiro
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {/* Date & Time */}
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
-                                                <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><CalendarIcon size={16} /></div>
-                                                <h3>Data e Hora</h3>
-                                            </div>
-                                            <div className="space-y-3">
-                                                <div className="relative">
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Data</label>
-                                                    <input
-                                                        type="date"
-                                                        value={date}
-                                                        onChange={e => setDate(e.target.value)}
-                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
-                                                    />
-                                                </div>
-                                                <div className="relative">
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Horário</label>
-                                                    <input
-                                                        type="time"
-                                                        value={time}
-                                                        onChange={e => setTime(e.target.value)}
-                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
-                                                    />
-                                                </div>
-                                                <div className="relative">
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Duração Estimada</label>
-                                                    <select
-                                                        value={manualDuration}
-                                                        onChange={e => setManualDuration(Number(e.target.value))}
-                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
-                                                    >
-                                                        <option value={0}>Automático (Soma dos serviços)</option>
-                                                        {Array.from({ length: 10 }, (_, i) => (i + 1) * 30).map(min => {
-                                                            const h = Math.floor(min / 60);
-                                                            const m = min % 60;
-                                                            const label = h > 0 ? `${h}h ${m > 0 ? m + 'min' : ''}` : `${m}min`;
-                                                            return <option key={min} value={min}>{label}</option>;
-                                                        })}
-                                                    </select>
+                                    {/* RIGHT COLUMN: Services & Details (60%) */}
+                                    <div className="lg:col-span-7 space-y-6 flex flex-col h-full bg-white rounded-3xl shadow-sm border border-gray-100/80 p-6 relative">
+                                        {!selectedPet && (
+                                            <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-3xl">
+                                                <div className="text-gray-400 font-medium flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-sm border border-gray-100">
+                                                    <ArrowRightLeft size={16} /> Selecione um pet primeiro
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
 
-                                        {/* Services */}
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
-                                                <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg"><Scissors size={16} /></div>
-                                                <h3>Serviços</h3>
-                                            </div>
-
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                            {/* Date & Time */}
                                             <div className="space-y-4">
-                                                <div className="relative">
-                                                    <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Serviço Principal</label>
-                                                    <select
-                                                        value={selectedService}
-                                                        onChange={e => setSelectedService(e.target.value)}
-                                                        className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
-                                                    >
-                                                        <option value="">Selecione...</option>
-                                                        {getApplicableServices('principal').map(s => (<option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>))}
-                                                    </select>
-                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                                <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
+                                                    <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg"><CalendarIcon size={16} /></div>
+                                                    <h3>Data e Hora</h3>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <div className="relative">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Data</label>
+                                                        <input
+                                                            type="date"
+                                                            value={date}
+                                                            onChange={e => setDate(e.target.value)}
+                                                            className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Horário</label>
+                                                        <input
+                                                            type="time"
+                                                            value={time}
+                                                            onChange={e => setTime(e.target.value)}
+                                                            className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Duração Estimada</label>
+                                                        <select
+                                                            value={manualDuration}
+                                                            onChange={e => setManualDuration(Number(e.target.value))}
+                                                            className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-blue-500/20 focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                                                        >
+                                                            <option value={0}>Automático (Soma dos serviços)</option>
+                                                            {Array.from({ length: 10 }, (_, i) => (i + 1) * 30).map(min => {
+                                                                const h = Math.floor(min / 60);
+                                                                const m = min % 60;
+                                                                const label = h > 0 ? `${h}h ${m > 0 ? m + 'min' : ''}` : `${m}min`;
+                                                                return <option key={min} value={min}>{label}</option>;
+                                                            })}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Services */}
+                                            <div className="space-y-4">
+                                                <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
+                                                    <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg"><Scissors size={16} /></div>
+                                                    <h3>Serviços</h3>
                                                 </div>
 
-                                                <div>
-                                                    {/* Selected Chips */}
-                                                    {selectedAddServices.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2 mb-3">
-                                                            {selectedAddServices.map(id => {
-                                                                const s = services.find(srv => srv.id === id);
-                                                                if (!s) return null;
-                                                                return (
-                                                                    <div key={id} className="flex items-center gap-1 pl-3 pr-1 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 shadow-sm animate-scale-up-sm">
-                                                                        <span>{s.name}</span>
-                                                                        <span className="opacity-60 text-[10px]">+R${s.price}</span>
-                                                                        <button onClick={() => setSelectedAddServices(prev => prev.filter(pid => pid !== id))} className="p-1 hover:bg-white/50 rounded-md transition-colors text-purple-800"><X size={12} /></button>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-
-                                                    {/* Add Dropdown */}
+                                                <div className="space-y-4">
                                                     <div className="relative">
-                                                        <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Adicionar Extra</label>
+                                                        <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Serviço Principal</label>
                                                         <select
-                                                            value=""
-                                                            onChange={e => {
-                                                                if (e.target.value) {
-                                                                    setSelectedAddServices(prev => [...prev, e.target.value]);
-                                                                }
-                                                            }}
+                                                            value={selectedService}
+                                                            onChange={e => setSelectedService(e.target.value)}
                                                             className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
                                                         >
-                                                            <option value="">Selecione para adicionar...</option>
-                                                            {(() => {
-                                                                const available = getApplicableServices('adicional').filter(s => !selectedAddServices.includes(s.id));
-                                                                // Deduplicate by name
-                                                                const uniqueAvailable = Array.from(new Map(available.map(s => [s.name, s])).values());
-
-                                                                return uniqueAvailable.map(s => (<option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>));
-                                                            })()}
+                                                            <option value="">Selecione...</option>
+                                                            {getApplicableServices('principal').map(s => (<option key={s.id} value={s.id}>{s.name} - R$ {s.price}</option>))}
                                                         </select>
-                                                        <Plus className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                                    </div>
+
+                                                    <div>
+                                                        {/* Selected Chips */}
+                                                        {selectedAddServices.length > 0 && (
+                                                            <div className="flex flex-wrap gap-2 mb-3">
+                                                                {selectedAddServices.map(id => {
+                                                                    const s = services.find(srv => srv.id === id);
+                                                                    if (!s) return null;
+                                                                    return (
+                                                                        <div key={id} className="flex items-center gap-1 pl-3 pr-1 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold border border-purple-200 shadow-sm animate-scale-up-sm">
+                                                                            <span>{s.name}</span>
+                                                                            <span className="opacity-60 text-[10px]">+R${s.price}</span>
+                                                                            <button onClick={() => setSelectedAddServices(prev => prev.filter(pid => pid !== id))} className="p-1 hover:bg-white/50 rounded-md transition-colors text-purple-800"><X size={12} /></button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Add Dropdown */}
+                                                        <div className="relative">
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase absolute left-3 top-2">Adicionar Extra</label>
+                                                            <select
+                                                                value=""
+                                                                onChange={e => {
+                                                                    if (e.target.value) {
+                                                                        setSelectedAddServices(prev => [...prev, e.target.value]);
+                                                                    }
+                                                                }}
+                                                                className="w-full pt-6 pb-2 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer hover:bg-white"
+                                                            >
+                                                                <option value="">Selecione para adicionar...</option>
+                                                                {(() => {
+                                                                    const available = getApplicableServices('adicional').filter(s => !selectedAddServices.includes(s.id));
+                                                                    // Deduplicate by name
+                                                                    const uniqueAvailable = Array.from(new Map(available.map(s => [s.name, s])).values());
+
+                                                                    return uniqueAvailable.map(s => (<option key={s.id} value={s.id}>{s.name} (+R$ {s.price})</option>));
+                                                                })()}
+                                                            </select>
+                                                            <Plus className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Notes */}
-                                    <div className="flex-1 flex flex-col">
-                                        <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
-                                            <div className="p-1.5 bg-orange-100 text-orange-600 rounded-lg"><FileText size={16} /></div>
-                                            <h3>Observações</h3>
+                                        {/* Notes */}
+                                        <div className="flex-1 flex flex-col">
+                                            <div className="flex items-center gap-2 mb-2 text-gray-800 font-bold">
+                                                <div className="p-1.5 bg-orange-100 text-orange-600 rounded-lg"><FileText size={16} /></div>
+                                                <h3>Observações</h3>
+                                            </div>
+                                            <textarea
+                                                value={notes}
+                                                onChange={e => setNotes(e.target.value)}
+                                                className="w-full flex-1 bg-yellow-50/50 hover:bg-yellow-50 border border-yellow-100 focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/10 rounded-2xl p-4 text-sm outline-none transition-all resize-none font-medium text-gray-700 placeholder:text-gray-400 leading-relaxed"
+                                                placeholder="Detalhes especiais, alergias, comportamento..."
+                                            />
                                         </div>
-                                        <textarea
-                                            value={notes}
-                                            onChange={e => setNotes(e.target.value)}
-                                            className="w-full flex-1 bg-yellow-50/50 hover:bg-yellow-50 border border-yellow-100 focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/10 rounded-2xl p-4 text-sm outline-none transition-all resize-none font-medium text-gray-700 placeholder:text-gray-400 leading-relaxed"
-                                            placeholder="Detalhes especiais, alergias, comportamento..."
-                                        />
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Footer Actions */}
-                        <div className="p-6 border-t border-gray-100 bg-white z-20 flex justify-between items-center">
-                            <div className="hidden md:block">
-                                {selectedService && (
-                                    <div className="text-right">
-                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Total Estimado</span>
-                                        <span className="text-2xl font-black text-brand-600">
-                                            R$ {(
-                                                (services.find(s => s.id === selectedService)?.price || 0) +
-                                                selectedAddServices.reduce((acc, id) => acc + (services.find(s => s.id === id)?.price || 0), 0)
-                                            ).toFixed(2)}
-                                        </span>
-                                    </div>
-                                )}
+                            {/* Footer Actions */}
+                            <div className="p-6 border-t border-gray-100 bg-white z-20 flex justify-between items-center">
+                                <div className="hidden md:block">
+                                    {selectedService && (
+                                        <div className="text-right">
+                                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Total Estimado</span>
+                                            <span className="text-2xl font-black text-brand-600">
+                                                R$ {(
+                                                    (services.find(s => s.id === selectedService)?.price || 0) +
+                                                    selectedAddServices.reduce((acc, id) => acc + (services.find(s => s.id === id)?.price || 0), 0)
+                                                ).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex gap-4 w-full md:w-auto">
+                                    <button onClick={resetForm} className="flex-1 md:flex-none px-8 py-4 rounded-xl text-gray-500 font-bold hover:bg-gray-100 transition-colors text-sm">Cancelar</button>
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={!selectedClient || !selectedPet || !selectedService}
+                                        className="flex-1 md:flex-none px-10 py-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-brand-200 hover:shadow-brand-300 hover:scale-[1.02] active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <Check size={20} strokeWidth={3} />
+                                        Confirmar
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex gap-4 w-full md:w-auto">
-                                <button onClick={resetForm} className="flex-1 md:flex-none px-8 py-4 rounded-xl text-gray-500 font-bold hover:bg-gray-100 transition-colors text-sm">Cancelar</button>
-                                <button
-                                    onClick={handleSave}
-                                    disabled={!selectedClient || !selectedPet || !selectedService}
-                                    className="flex-1 md:flex-none px-10 py-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-brand-200 hover:shadow-brand-300 hover:scale-[1.02] active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
-                                >
-                                    <Check size={20} strokeWidth={3} />
-                                    Confirmar
-                                </button>
-                            </div>
                         </div>
-                    </div>
-                </div>,
-                document.body)}
-        </div>
-    );
-};
-
-// --- MENU VIEW (Mobile Only - 4th Tab) ---
-// --- MENU VIEW (Mobile Only - 4th Tab) ---
-const MenuView: React.FC<{ setView: (v: ViewState) => void, onOpenSettings: () => void }> = ({ setView, onOpenSettings }) => {
-    const MenuCard = ({ icon: Icon, title, onClick, colorClass }: any) => (
-        <button onClick={onClick} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-3 aspect-square active:scale-95 transition">
-            <div className={`w-12 h-12 rounded-full ${colorClass} flex items-center justify-center text-white`}><Icon size={24} /></div>
-            <span className="font-bold text-gray-700 text-sm">{title}</span>
-        </button>
-    );
-
-    return (
-        <div className="space-y-6 animate-fade-in p-4 max-w-md mx-auto h-full flex flex-col justify-center">
-            <h1 className="text-3xl font-bold text-gray-800 text-center mb-8">Menu</h1>
-
-            <div className="space-y-4 flex-1 flex flex-col justify-center">
-                <button onClick={() => setView('services')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
-                    <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Scissors size={32} /></div>
-                    <div className="text-left">
-                        <span className="block text-xl font-bold text-gray-800">Serviços</span>
-                        <span className="text-sm text-gray-400 font-medium">Gerenciar catálogo de preços</span>
-                    </div>
-                    <ChevronRight className="ml-auto text-gray-300" />
-                </button>
-
-                <button onClick={() => setView('revenue')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
-                    <div className="w-16 h-16 rounded-2xl bg-teal-100 text-teal-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><TrendingUp size={32} /></div>
-                    <div className="text-left">
-                        <span className="block text-xl font-bold text-gray-800">Faturamento</span>
-                        <span className="text-sm text-gray-400 font-medium">Relatórios de ganhos</span>
-                    </div>
-                    <ChevronRight className="ml-auto text-gray-300" />
-                </button>
-
-                <button onClick={() => setView('costs')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
-                    <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><TrendingDown size={32} /></div>
-                    <div className="text-left">
-                        <span className="block text-xl font-bold text-gray-800">Custo Mensal</span>
-                        <span className="text-sm text-gray-400 font-medium">Despesas e saídas</span>
-                    </div>
-                    <ChevronRight className="ml-auto text-gray-300" />
-                </button>
-
-
-
-                <button onClick={onOpenSettings} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
-                    <div className="w-16 h-16 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Settings size={32} /></div>
-                    <div className="text-left">
-                        <span className="block text-xl font-bold text-gray-800">Configurações</span>
-                        <span className="text-sm text-gray-400 font-medium">Tema e preferências</span>
-                    </div>
-                    <ChevronRight className="ml-auto text-gray-300" />
-                </button>
-
-
+                    </div>,
+                    document.body)}
             </div>
+        );
+    };
 
-            <p className="text-center text-xs text-gray-300 font-medium mt-auto">Versão 1.2.0 • PetGestor AI</p>
-        </div>
-    );
-};
+    // --- MENU VIEW (Mobile Only - 4th Tab) ---
+    // --- MENU VIEW (Mobile Only - 4th Tab) ---
+    const MenuView: React.FC<{ setView: (v: ViewState) => void, onOpenSettings: () => void }> = ({ setView, onOpenSettings }) => {
+        const MenuCard = ({ icon: Icon, title, onClick, colorClass }: any) => (
+            <button onClick={onClick} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-3 aspect-square active:scale-95 transition">
+                <div className={`w-12 h-12 rounded-full ${colorClass} flex items-center justify-center text-white`}><Icon size={24} /></div>
+                <span className="font-bold text-gray-700 text-sm">{title}</span>
+            </button>
+        );
 
-// --- APP COMPONENT ---
-const App: React.FC = () => {
-    // home is now used as a redirect or default view, but bottom nav handles specific views
-    // Actually, let's keep 'home' as the default landing view which shows the Daily Revenue
-    const [currentView, setCurrentView] = useState<ViewState>('home');
-    const [clients, setClients] = useState<Client[]>([]);
-    const [services, setServices] = useState<Service[]>([]);
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [costs, setCosts] = useState<CostItem[]>([]);
-    const [isConfigured, setIsConfigured] = useState(true);
-    const [accessToken, setAccessToken] = useState<string | null>(null);
-    const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
-    const [isGlobalLoading, setIsGlobalLoading] = useState(false);
-    const [settings, setSettings] = useState<AppSettings>({ appName: 'PomPomPet', logoUrl: '', theme: 'rose', sidebarOrder: ['operacional', 'cadastros', 'gerencial'], darkMode: false });
+        return (
+            <div className="space-y-6 animate-fade-in p-4 max-w-md mx-auto h-full flex flex-col justify-center">
+                <h1 className="text-3xl font-bold text-gray-800 text-center mb-8">Menu</h1>
 
-    // --- DARK MODE EFFECT ---
-    useEffect(() => {
-        if (settings.darkMode) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    }, [settings.darkMode]);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [googleLoaded, setGoogleLoaded] = useState(false);
+                <div className="space-y-4 flex-1 flex flex-col justify-center">
+                    <button onClick={() => setView('services')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
+                        <div className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Scissors size={32} /></div>
+                        <div className="text-left">
+                            <span className="block text-xl font-bold text-gray-800">Serviços</span>
+                            <span className="text-sm text-gray-400 font-medium">Gerenciar catálogo de preços</span>
+                        </div>
+                        <ChevronRight className="ml-auto text-gray-300" />
+                    </button>
 
-    // --- PIN SECURITY STATE ---
-    const [pin, setPin] = useState(localStorage.getItem('petgestor_pin') || '');
-    const [isPinUnlocked, setIsPinUnlocked] = useState(false);
+                    <button onClick={() => setView('revenue')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
+                        <div className="w-16 h-16 rounded-2xl bg-teal-100 text-teal-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><TrendingUp size={32} /></div>
+                        <div className="text-left">
+                            <span className="block text-xl font-bold text-gray-800">Faturamento</span>
+                            <span className="text-sm text-gray-400 font-medium">Relatórios de ganhos</span>
+                        </div>
+                        <ChevronRight className="ml-auto text-gray-300" />
+                    </button>
 
-    const SHEET_ID = localStorage.getItem('petgestor_sheet_id') || PREDEFINED_SHEET_ID;
+                    <button onClick={() => setView('costs')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
+                        <div className="w-16 h-16 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><TrendingDown size={32} /></div>
+                        <div className="text-left">
+                            <span className="block text-xl font-bold text-gray-800">Custo Mensal</span>
+                            <span className="text-sm text-gray-400 font-medium">Despesas e saídas</span>
+                        </div>
+                        <ChevronRight className="ml-auto text-gray-300" />
+                    </button>
 
-    const STORAGE_KEY_TOKEN = 'petgestor_access_token';
-    const STORAGE_KEY_EXPIRY = 'petgestor_token_expiry';
-    const STORAGE_KEY_USER = 'petgestor_user_profile';
-    const STORAGE_KEY_SETTINGS = 'petgestor_settings';
 
-    useEffect(() => {
-        setClients(db.getClients());
-        setServices(db.getServices());
-        setAppointments(db.getAppointments());
-        const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
-        if (savedSettings) setSettings(JSON.parse(savedSettings));
 
-        if (!localStorage.getItem('petgestor_client_id')) localStorage.setItem('petgestor_client_id', DEFAULT_CLIENT_ID);
-        const storedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
-        const storedExpiry = localStorage.getItem(STORAGE_KEY_EXPIRY);
-        const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+                    <button onClick={onOpenSettings} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-100 text-gray-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Settings size={32} /></div>
+                        <div className="text-left">
+                            <span className="block text-xl font-bold text-gray-800">Configurações</span>
+                            <span className="text-sm text-gray-400 font-medium">Tema e preferências</span>
+                        </div>
+                        <ChevronRight className="ml-auto text-gray-300" />
+                    </button>
 
-        if (storedToken && storedExpiry && storedUser) {
-            if (Date.now() < parseInt(storedExpiry)) {
-                setAccessToken(storedToken);
-                setGoogleUser(JSON.parse(storedUser));
-                performFullSync(storedToken);
+
+                </div>
+
+                <p className="text-center text-xs text-gray-300 font-medium mt-auto">Versão 1.2.0 • PetGestor AI</p>
+            </div>
+        );
+    };
+
+    // --- APP COMPONENT ---
+    const App: React.FC = () => {
+        // home is now used as a redirect or default view, but bottom nav handles specific views
+        // Actually, let's keep 'home' as the default landing view which shows the Daily Revenue
+        const [currentView, setCurrentView] = useState<ViewState>('home');
+        const [clients, setClients] = useState<Client[]>([]);
+        const [services, setServices] = useState<Service[]>([]);
+        const [appointments, setAppointments] = useState<Appointment[]>([]);
+        const [costs, setCosts] = useState<CostItem[]>([]);
+        const [isConfigured, setIsConfigured] = useState(true);
+        const [accessToken, setAccessToken] = useState<string | null>(null);
+        const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
+        const [isGlobalLoading, setIsGlobalLoading] = useState(false);
+        const [settings, setSettings] = useState<AppSettings>({ appName: 'PomPomPet', logoUrl: '', theme: 'rose', sidebarOrder: ['operacional', 'cadastros', 'gerencial'], darkMode: false });
+
+        // --- DARK MODE EFFECT ---
+        useEffect(() => {
+            if (settings.darkMode) {
+                document.documentElement.classList.add('dark');
             } else {
-                localStorage.removeItem(STORAGE_KEY_TOKEN);
-                localStorage.removeItem(STORAGE_KEY_EXPIRY);
-                localStorage.removeItem(STORAGE_KEY_USER);
+                document.documentElement.classList.remove('dark');
             }
-        }
+        }, [settings.darkMode]);
+        const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+        const [googleLoaded, setGoogleLoaded] = useState(false);
 
-        const interval = setInterval(() => { if ((window as any).google) { setGoogleLoaded(true); clearInterval(interval); initAuthLogic(); } }, 500);
-        return () => clearInterval(interval);
-    }, []);
+        // --- PIN SECURITY STATE ---
+        const [pin, setPin] = useState(localStorage.getItem('petgestor_pin') || '');
+        const [isPinUnlocked, setIsPinUnlocked] = useState(false);
 
-    useEffect(() => { const root = document.documentElement; const themes: Record<string, string> = { rose: '225 29 72', blue: '37 99 235', purple: '147 51 234', green: '22 163 74', orange: '234 88 12' }; const color = themes[settings.theme] || themes.rose; root.style.setProperty('--brand-600', color); }, [settings.theme]);
+        const SHEET_ID = localStorage.getItem('petgestor_sheet_id') || PREDEFINED_SHEET_ID;
+
+        const STORAGE_KEY_TOKEN = 'petgestor_access_token';
+        const STORAGE_KEY_EXPIRY = 'petgestor_token_expiry';
+        const STORAGE_KEY_USER = 'petgestor_user_profile';
+        const STORAGE_KEY_SETTINGS = 'petgestor_settings';
+
+        useEffect(() => {
+            setClients(db.getClients());
+            setServices(db.getServices());
+            setAppointments(db.getAppointments());
+            const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+            if (savedSettings) setSettings(JSON.parse(savedSettings));
+
+            if (!localStorage.getItem('petgestor_client_id')) localStorage.setItem('petgestor_client_id', DEFAULT_CLIENT_ID);
+            const storedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+            const storedExpiry = localStorage.getItem(STORAGE_KEY_EXPIRY);
+            const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+
+            if (storedToken && storedExpiry && storedUser) {
+                if (Date.now() < parseInt(storedExpiry)) {
+                    setAccessToken(storedToken);
+                    setGoogleUser(JSON.parse(storedUser));
+                    performFullSync(storedToken);
+                } else {
+                    localStorage.removeItem(STORAGE_KEY_TOKEN);
+                    localStorage.removeItem(STORAGE_KEY_EXPIRY);
+                    localStorage.removeItem(STORAGE_KEY_USER);
+                }
+            }
+
+            const interval = setInterval(() => { if ((window as any).google) { setGoogleLoaded(true); clearInterval(interval); initAuthLogic(); } }, 500);
+            return () => clearInterval(interval);
+        }, []);
+
+        useEffect(() => { const root = document.documentElement; const themes: Record<string, string> = { rose: '225 29 72', blue: '37 99 235', purple: '147 51 234', green: '22 163 74', orange: '234 88 12' }; const color = themes[settings.theme] || themes.rose; root.style.setProperty('--brand-600', color); }, [settings.theme]);
 
 
-    // Apply Theme & Dark Mode
-    useEffect(() => {
-        const root = document.documentElement;
+        // Apply Theme & Dark Mode
+        useEffect(() => {
+            const root = document.documentElement;
 
-        // Dark Mode Logic
-        if (settings.darkMode) {
-            root.classList.add('dark');
-        } else {
-            root.classList.remove('dark');
-        }
+            // Dark Mode Logic
+            if (settings.darkMode) {
+                root.classList.add('dark');
+            } else {
+                root.classList.remove('dark');
+            }
 
-        // Theme Color Logic
-        const themeColors: Record<string, string> = {
-            rose: '#e11d48',
-            blue: '#2563eb',
-            purple: '#9333ea',
-            green: '#16a34a',
-            orange: '#ea580c'
+            // Theme Color Logic
+            const themeColors: Record<string, string> = {
+                rose: '#e11d48',
+                blue: '#2563eb',
+                purple: '#9333ea',
+                green: '#16a34a',
+                orange: '#ea580c'
+            };
+
+            const color = themeColors[settings.theme || 'rose'];
+            if (color) {
+                root.style.setProperty('--brand-600', color);
+            }
+
+        }, [settings.theme, settings.darkMode]);
+
+        const performFullSync = async (token: string) => { if (!SHEET_ID) return; setIsGlobalLoading(true); try { await handleSyncServices(token, true); await handleSyncClients(token, true); await handleSyncAppointments(token, true); await handleSyncCosts(token, true); } catch (e) { console.error("Auto Sync Failed", e); } finally { setIsGlobalLoading(false); } }
+
+        const initAuthLogic = () => { if ((window as any).google) { googleService.init(async (tokenResponse) => { if (tokenResponse && tokenResponse.access_token) { const token = tokenResponse.access_token; const expiresIn = tokenResponse.expires_in || 3599; localStorage.setItem(STORAGE_KEY_TOKEN, token); localStorage.setItem(STORAGE_KEY_EXPIRY, (Date.now() + (expiresIn * 1000)).toString()); setAccessToken(token); const profile = await googleService.getUserProfile(token); if (profile) { const user = { id: profile.id, name: profile.name, email: profile.email, picture: profile.picture }; setGoogleUser(user); localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user)); } performFullSync(token); } }); } };
+        const handleLogout = () => { setAccessToken(null); setGoogleUser(null); setIsPinUnlocked(false); localStorage.removeItem(STORAGE_KEY_TOKEN); localStorage.removeItem(STORAGE_KEY_EXPIRY); localStorage.removeItem(STORAGE_KEY_USER); if ((window as any).google) (window as any).google.accounts.id.disableAutoSelect(); }
+        const handleSaveConfig = (id: string) => { localStorage.setItem('petgestor_client_id', id); setIsConfigured(true); window.location.reload(); };
+        const handleResetConfig = () => { localStorage.removeItem('petgestor_client_id'); setIsConfigured(false); setGoogleUser(null); };
+
+        const handleSyncCosts = async (token: string, silent = false) => {
+            // ... [Sync Costs Logic same as before] ...
+            if (!token || !SHEET_ID) return;
+            try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'Custo Mensal!A:F'); if (!rows || rows.length < 2) return; const loadedCosts: CostItem[] = []; rows.slice(1).forEach((row: string[], idx: number) => { const dateStr = row[2]; const typeStr = row[3]; const costStr = row[4]; const statusStr = row[5] ? row[5].trim() : ''; if (!dateStr || !costStr) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = dateStr.split('/'); if (day && month && year) isoDate = `${year}-${month}-${day}T00:00:00`; } catch (e) { } let amount = 0; const cleanCost = costStr.replace(/[^\d,.-]/g, '').trim(); amount = parseFloat(cleanCost.includes(',') ? cleanCost.replace(/\./g, '').replace(',', '.') : cleanCost); if (isNaN(amount)) amount = 0; loadedCosts.push({ id: `cost_${idx}`, month: row[0], week: row[1], date: isoDate, category: typeStr, amount: amount, status: statusStr.toLowerCase() === 'pago' ? 'Pago' : '' }); }); setCosts(loadedCosts); if (!silent) alert("Custos atualizados."); } catch (e) { console.error(e); }
         };
 
-        const color = themeColors[settings.theme || 'rose'];
-        if (color) {
-            root.style.setProperty('--brand-600', color);
+        const handleSyncClients = async (token: string, silent = false) => {
+            // ... [Sync Clients Logic same as before] ...
+            if (!token || !SHEET_ID) { if (!silent) alert("Erro: Login ou ID da Planilha faltando."); return; } try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'CADASTRO!A:O'); if (!rows || rows.length < 2) { if (!silent) alert("Planilha vazia ou aba 'CADASTRO' não encontrada."); return; } const clientsMap = new Map<string, Client>(); rows.slice(1).forEach((row: string[], index: number) => { const timestamp = row[1]; const clientName = row[3]; const phone = row[4]; const address = row[5]; const complement = row[11]; const petName = row[6]; const petBreed = row[7]; const petSize = row[8]; const petCoat = row[9]; const petNotes = row[10]; const petAge = row[12]; const petGender = row[13]; if (!clientName || !phone) return; const cleanPhone = phone.replace(/\D/g, ''); if (!clientsMap.has(cleanPhone)) { let createdIso = new Date().toISOString(); try { if (timestamp) { const [datePart, timePart] = timestamp.split(' '); const [day, month, year] = datePart.split('/'); if (year && month && day) createdIso = new Date(`${year}-${month}-${day}T${timePart || '00:00'}`).toISOString(); } } catch (e) { } clientsMap.set(cleanPhone, { id: cleanPhone, name: clientName, phone: phone, address: address || '', complement: complement || '', createdAt: createdIso, pets: [] }); } const client = clientsMap.get(cleanPhone)!; if (petName) { client.pets.push({ id: `${cleanPhone}_p_${index}`, name: petName, breed: petBreed || 'SRD', age: petAge || '', gender: petGender || '', size: petSize || '', coat: petCoat || '', notes: petNotes || '' }); } }); const newClientList = Array.from(clientsMap.values()); setClients(newClientList); db.saveClients(newClientList); if (!silent) alert(`${newClientList.length} clientes sincronizados!`); } catch (error) { console.error(error); if (!silent) alert("Erro ao sincronizar."); }
+        };
+        const handleDeleteClient = (id: string) => { const updated = clients.filter(c => c.id !== id); setClients(updated); db.saveClients(updated); };
+        const handleAddService = (service: Service) => { const updated = [...services, service]; setServices(updated); db.saveServices(updated); };
+        const handleDeleteService = (id: string) => { const updated = services.filter(s => s.id !== id); setServices(updated); db.saveServices(updated); }
+        const handleSyncServices = async (token: string, silent = false) => {
+            // ... [Sync Services Logic same as before] ...
+            if (!token || !SHEET_ID) { if (!silent) alert("Erro: Login ou ID da Planilha faltando."); return; } try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'Serviço!A:E'); if (!rows || rows.length < 2) { if (!silent) alert("Aba 'Serviço' vazia ou não encontrada."); return; } const newServices: Service[] = []; rows.slice(1).forEach((row: string[], idx: number) => { const sName = row[0]; const sCat = (row[1] || 'principal').toLowerCase().includes('adicional') ? 'adicional' : 'principal'; const sSize = row[2] && row[2].trim() !== '' ? row[2] : 'Todos'; const sCoat = row[3] && row[3].trim() !== '' ? row[3] : 'Todos'; let rawPrice = row[4] || '0'; rawPrice = rawPrice.replace(/[^\d,.-]/g, '').trim(); if (rawPrice.includes(',')) rawPrice = rawPrice.replace(/\./g, '').replace(',', '.'); const sPrice = parseFloat(rawPrice); if (sName) { newServices.push({ id: `sheet_svc_${idx}_${Date.now()}`, name: sName, category: sCat as any, targetSize: sSize, targetCoat: sCoat, price: isNaN(sPrice) ? 0 : sPrice, description: `Importado`, durationMin: 60 }); } }); if (newServices.length > 0) { setServices(newServices); db.saveServices(newServices); if (!silent) alert(`${newServices.length} serviços importados!`); } } catch (e) { console.error(e); if (!silent) alert("Erro ao sincronizar serviços."); }
+        }
+        const handleUpdateApp = (updatedApp: Appointment) => { const updated = appointments.map(a => a.id === updatedApp.id ? updatedApp : a); setAppointments(updated); db.saveAppointments(updated); };
+        const handleSyncAppointments = async (token: string, silent = false) => {
+            // ... [Sync Appointments Logic same as before] ...
+            if (!token || !SHEET_ID) return; try {
+                const rows = await googleService.getSheetValues(token, SHEET_ID, 'Agendamento!A:T'); if (!rows || rows.length < 5) { if (!silent) alert('Aba Agendamento vazia (Linhas 1-4 ignoradas).'); return; } const loadedApps: Appointment[] = []; const newTempClients: Client[] = []; const currentClients = db.getClients(); const existingClientIds = new Set(currentClients.map(c => c.id)); rows.forEach((row: string[], idx: number) => {
+                    if (idx < 4) return; const petName = row[0]; const clientName = row[1]; const clientPhone = row[2] || ''; const clientAddr = row[3] || ''; const petBreed = row[4]; const datePart = row[11]; const timePart = row[12]; const serviceName = row[7]; const paidAmountStr = row[16]; const paymentMethod = row[17]; const googleEventId = row[19]; if (!clientName || !datePart) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = datePart.split('/'); if (day && month && year) isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`; } catch (e) { } const cleanPhone = clientPhone.replace(/\D/g, '') || `temp_${idx}`; let client = currentClients.find(c => c.id === cleanPhone) || currentClients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone); if (!client) { client = { id: cleanPhone, name: clientName, phone: clientPhone, address: clientAddr, pets: [] }; newTempClients.push(client); } let pet = client.pets.find(p => p.name.toLowerCase() === petName?.toLowerCase()); if (!pet && petName) { pet = { id: `${client.id}_p_${idx}`, name: petName, breed: petBreed || 'SRD', age: '', gender: '', size: row[5] || '', coat: row[6] || '', notes: row[13] || '' }; client.pets.push(pet); } const currentServices = db.getServices(); const service = currentServices.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || currentServices[0]; const addServiceIds: string[] = [];[row[8], row[9], row[10]].forEach(name => { if (name) { const foundSvc = currentServices.find(s => s.name.toLowerCase() === name.toLowerCase().trim()); if (foundSvc) addServiceIds.push(foundSvc.id); } }); let paidAmount = 0;
+                    if (paidAmountStr) { paidAmount = parseFloat(paidAmountStr.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')); if (isNaN(paidAmount)) paidAmount = 0; }
+
+                    // Parse Rating logic
+                    let rating = 0;
+                    let ratingTags: string[] = [];
+                    const notes = row[13] || '';
+                    const ratingMatch = notes.match(/\[Avaliação: (\d+)\/5\]/);
+                    if (ratingMatch && ratingMatch[1]) rating = parseInt(ratingMatch[1]);
+                    const tagsMatch = notes.match(/\[Tags: (.*?)\]/);
+                    if (tagsMatch && tagsMatch[1]) { ratingTags = tagsMatch[1].split(',').map(t => t.trim()); }
+
+                    if (client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: 'agendado', notes: row[13], durationTotal: parseInt(row[14] || '60'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: googleEventId, rating: rating > 0 ? rating : undefined, ratingTags: ratingTags.length > 0 ? ratingTags : undefined }); }
+                }); if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); } if (loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if (!silent) alert(`${loadedApps.length} agendamentos carregados!`); } else { if (!silent) alert('Nenhum agendamento encontrado.'); }
+            } catch (error) { console.error(error); if (!silent) alert('Erro ao sincronizar agendamentos.'); }
+        };
+        const handleAddAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
+            // ... [Add Appointment Logic same as before] ...
+            let googleEventId = ''; const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
+            if (accessToken) { const description = appServices.map(s => s.name).join(' + '); const googleResponse = await googleService.createEvent(accessToken, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration }); if (googleResponse) googleEventId = googleResponse.id; }
+            const newApp = { ...app, googleEventId, durationTotal: totalDuration };
+            const updatedApps = [...appointments, newApp];
+            setAppointments(updatedApps);
+            db.saveAppointments(updatedApps);
+            if (accessToken && SHEET_ID) {
+                try {
+                    const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const mainSvc = appServices[0];
+                    const rowData = [
+                        pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
+                        appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
+                        dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Agendado', '', '', '', googleEventId
+                    ];
+                    await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
+                    // Silent Sync to update IDs
+                    handleSyncAppointments(accessToken, true);
+                } catch (e) { console.error(e); alert("Salvo no app, mas erro na planilha."); }
+            }
+        };
+
+        const handleEditAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
+            const googleEventId = app.googleEventId; const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
+            const updatedApp = { ...app, durationTotal: totalDuration };
+            if (accessToken && googleEventId) {
+                const description = appServices.map(s => s.name).join(' + ');
+                await googleService.updateEvent(accessToken, googleEventId, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration });
+            }
+            const updatedList = appointments.map(a => a.id === app.id ? updatedApp : a);
+            setAppointments(updatedList); db.saveAppointments(updatedList);
+            if (app.id.startsWith('sheet_') && accessToken && SHEET_ID) {
+                try {
+                    const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
+                    const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const mainSvc = appServices[0];
+                    const rowData = [
+                        pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
+                        appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
+                        dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Agendado', '', app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '', app.paymentMethod || '', googleEventId
+                    ];
+                    await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`, rowData);
+                } catch (e) { console.error(e); alert("Erro ao atualizar planilha."); }
+            }
+        };
+
+        const handleDeleteAppointment = async (id: string) => {
+            if (!confirm("Tem certeza que deseja excluir?")) return;
+            const app = appointments.find(a => a.id === id);
+            if (app && app.googleEventId && accessToken) { await googleService.deleteEvent(accessToken, app.googleEventId); }
+            const updated = appointments.filter(a => a.id !== id);
+            setAppointments(updated); db.saveAppointments(updated);
+            if (id.startsWith('sheet_') && accessToken && SHEET_ID) {
+                try {
+                    const parts = id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
+                    await googleService.clearSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`);
+                } catch (e) { console.error(e); }
+            }
+        };
+
+        const handleUpdateStatus = (id: string, status: Appointment['status']) => {
+            const updated = appointments.map(a => a.id === id ? { ...a, status } : a);
+            setAppointments(updated);
+            db.saveAppointments(updated);
         }
 
-    }, [settings.theme, settings.darkMode]);
+        // --- PIN LOGIC Handlers ---
+        const handlePinUnlock = (input: string) => { if (input === pin) { setIsPinUnlocked(true); return true; } return false; };
+        const handleSetPin = (newPin: string) => { localStorage.setItem('petgestor_pin', newPin); setPin(newPin); setIsPinUnlocked(true); };
 
-    const performFullSync = async (token: string) => { if (!SHEET_ID) return; setIsGlobalLoading(true); try { await handleSyncServices(token, true); await handleSyncClients(token, true); await handleSyncAppointments(token, true); await handleSyncCosts(token, true); } catch (e) { console.error("Auto Sync Failed", e); } finally { setIsGlobalLoading(false); } }
+        if (!isConfigured) return <SetupScreen onSave={handleSaveConfig} />;
 
-    const initAuthLogic = () => { if ((window as any).google) { googleService.init(async (tokenResponse) => { if (tokenResponse && tokenResponse.access_token) { const token = tokenResponse.access_token; const expiresIn = tokenResponse.expires_in || 3599; localStorage.setItem(STORAGE_KEY_TOKEN, token); localStorage.setItem(STORAGE_KEY_EXPIRY, (Date.now() + (expiresIn * 1000)).toString()); setAccessToken(token); const profile = await googleService.getUserProfile(token); if (profile) { const user = { id: profile.id, name: profile.name, email: profile.email, picture: profile.picture }; setGoogleUser(user); localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user)); } performFullSync(token); } }); } };
-    const handleLogout = () => { setAccessToken(null); setGoogleUser(null); setIsPinUnlocked(false); localStorage.removeItem(STORAGE_KEY_TOKEN); localStorage.removeItem(STORAGE_KEY_EXPIRY); localStorage.removeItem(STORAGE_KEY_USER); if ((window as any).google) (window as any).google.accounts.id.disableAutoSelect(); }
-    const handleSaveConfig = (id: string) => { localStorage.setItem('petgestor_client_id', id); setIsConfigured(true); window.location.reload(); };
-    const handleResetConfig = () => { localStorage.removeItem('petgestor_client_id'); setIsConfigured(false); setGoogleUser(null); };
+        if (!googleUser) return <LoginScreen onLogin={googleService.login} onReset={handleResetConfig} settings={settings} googleLoaded={googleLoaded} />;
 
-    const handleSyncCosts = async (token: string, silent = false) => {
-        // ... [Sync Costs Logic same as before] ...
-        if (!token || !SHEET_ID) return;
-        try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'Custo Mensal!A:F'); if (!rows || rows.length < 2) return; const loadedCosts: CostItem[] = []; rows.slice(1).forEach((row: string[], idx: number) => { const dateStr = row[2]; const typeStr = row[3]; const costStr = row[4]; const statusStr = row[5] ? row[5].trim() : ''; if (!dateStr || !costStr) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = dateStr.split('/'); if (day && month && year) isoDate = `${year}-${month}-${day}T00:00:00`; } catch (e) { } let amount = 0; const cleanCost = costStr.replace(/[^\d,.-]/g, '').trim(); amount = parseFloat(cleanCost.includes(',') ? cleanCost.replace(/\./g, '').replace(',', '.') : cleanCost); if (isNaN(amount)) amount = 0; loadedCosts.push({ id: `cost_${idx}`, month: row[0], week: row[1], date: isoDate, category: typeStr, amount: amount, status: statusStr.toLowerCase() === 'pago' ? 'Pago' : '' }); }); setCosts(loadedCosts); if (!silent) alert("Custos atualizados."); } catch (e) { console.error(e); }
-    };
+        // if (isGlobalLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-brand-50"><Loader2 size={48} className="text-brand-600 animate-spin mb-4" /><p className="text-brand-700 font-bold animate-pulse">Sincronizando dados...</p></div>;
 
-    const handleSyncClients = async (token: string, silent = false) => {
-        // ... [Sync Clients Logic same as before] ...
-        if (!token || !SHEET_ID) { if (!silent) alert("Erro: Login ou ID da Planilha faltando."); return; } try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'CADASTRO!A:O'); if (!rows || rows.length < 2) { if (!silent) alert("Planilha vazia ou aba 'CADASTRO' não encontrada."); return; } const clientsMap = new Map<string, Client>(); rows.slice(1).forEach((row: string[], index: number) => { const timestamp = row[1]; const clientName = row[3]; const phone = row[4]; const address = row[5]; const complement = row[11]; const petName = row[6]; const petBreed = row[7]; const petSize = row[8]; const petCoat = row[9]; const petNotes = row[10]; const petAge = row[12]; const petGender = row[13]; if (!clientName || !phone) return; const cleanPhone = phone.replace(/\D/g, ''); if (!clientsMap.has(cleanPhone)) { let createdIso = new Date().toISOString(); try { if (timestamp) { const [datePart, timePart] = timestamp.split(' '); const [day, month, year] = datePart.split('/'); if (year && month && day) createdIso = new Date(`${year}-${month}-${day}T${timePart || '00:00'}`).toISOString(); } } catch (e) { } clientsMap.set(cleanPhone, { id: cleanPhone, name: clientName, phone: phone, address: address || '', complement: complement || '', createdAt: createdIso, pets: [] }); } const client = clientsMap.get(cleanPhone)!; if (petName) { client.pets.push({ id: `${cleanPhone}_p_${index}`, name: petName, breed: petBreed || 'SRD', age: petAge || '', gender: petGender || '', size: petSize || '', coat: petCoat || '', notes: petNotes || '' }); } }); const newClientList = Array.from(clientsMap.values()); setClients(newClientList); db.saveClients(newClientList); if (!silent) alert(`${newClientList.length} clientes sincronizados!`); } catch (error) { console.error(error); if (!silent) alert("Erro ao sincronizar."); }
-    };
-    const handleDeleteClient = (id: string) => { const updated = clients.filter(c => c.id !== id); setClients(updated); db.saveClients(updated); };
-    const handleAddService = (service: Service) => { const updated = [...services, service]; setServices(updated); db.saveServices(updated); };
-    const handleDeleteService = (id: string) => { const updated = services.filter(s => s.id !== id); setServices(updated); db.saveServices(updated); }
-    const handleSyncServices = async (token: string, silent = false) => {
-        // ... [Sync Services Logic same as before] ...
-        if (!token || !SHEET_ID) { if (!silent) alert("Erro: Login ou ID da Planilha faltando."); return; } try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'Serviço!A:E'); if (!rows || rows.length < 2) { if (!silent) alert("Aba 'Serviço' vazia ou não encontrada."); return; } const newServices: Service[] = []; rows.slice(1).forEach((row: string[], idx: number) => { const sName = row[0]; const sCat = (row[1] || 'principal').toLowerCase().includes('adicional') ? 'adicional' : 'principal'; const sSize = row[2] && row[2].trim() !== '' ? row[2] : 'Todos'; const sCoat = row[3] && row[3].trim() !== '' ? row[3] : 'Todos'; let rawPrice = row[4] || '0'; rawPrice = rawPrice.replace(/[^\d,.-]/g, '').trim(); if (rawPrice.includes(',')) rawPrice = rawPrice.replace(/\./g, '').replace(',', '.'); const sPrice = parseFloat(rawPrice); if (sName) { newServices.push({ id: `sheet_svc_${idx}_${Date.now()}`, name: sName, category: sCat as any, targetSize: sSize, targetCoat: sCoat, price: isNaN(sPrice) ? 0 : sPrice, description: `Importado`, durationMin: 60 }); } }); if (newServices.length > 0) { setServices(newServices); db.saveServices(newServices); if (!silent) alert(`${newServices.length} serviços importados!`); } } catch (e) { console.error(e); if (!silent) alert("Erro ao sincronizar serviços."); }
+        // Views that require PIN
+        const secureViews: ViewState[] = ['revenue', 'costs'];
+        if (secureViews.includes(currentView) && !isPinUnlocked) {
+            return <PinGuard isUnlocked={false} onUnlock={handlePinUnlock} onSetPin={handleSetPin} hasPin={!!pin} onReset={handleLogout} setView={setCurrentView} />;
+        }
+
+        return (
+            <HashRouter>
+                <Layout
+                    currentView={currentView}
+                    setView={setCurrentView}
+                    googleUser={googleUser}
+                    onLogin={googleService.login}
+                    onLogout={handleLogout}
+                    settings={settings}
+                    onOpenSettings={() => setIsSettingsOpen(true)}
+                    isLoading={isGlobalLoading}
+                    onManualRefresh={async () => { if (accessToken) await performFullSync(accessToken); else window.location.reload(); }}
+                >
+                    {currentView === 'home' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="daily" />}
+                    {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="monthly" />}
+                    {currentView === 'costs' && <CostsView costs={costs} />}
+                    {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} accessToken={accessToken} sheetId={SHEET_ID} />}
+                    {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
+                    {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
+                    {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
+                    {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
+                </Layout>
+                <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
+            </HashRouter>
+        );
     }
-    const handleUpdateApp = (updatedApp: Appointment) => { const updated = appointments.map(a => a.id === updatedApp.id ? updatedApp : a); setAppointments(updated); db.saveAppointments(updated); };
-    const handleSyncAppointments = async (token: string, silent = false) => {
-        // ... [Sync Appointments Logic same as before] ...
-        if (!token || !SHEET_ID) return; try {
-            const rows = await googleService.getSheetValues(token, SHEET_ID, 'Agendamento!A:T'); if (!rows || rows.length < 5) { if (!silent) alert('Aba Agendamento vazia (Linhas 1-4 ignoradas).'); return; } const loadedApps: Appointment[] = []; const newTempClients: Client[] = []; const currentClients = db.getClients(); const existingClientIds = new Set(currentClients.map(c => c.id)); rows.forEach((row: string[], idx: number) => {
-                if (idx < 4) return; const petName = row[0]; const clientName = row[1]; const clientPhone = row[2] || ''; const clientAddr = row[3] || ''; const petBreed = row[4]; const datePart = row[11]; const timePart = row[12]; const serviceName = row[7]; const paidAmountStr = row[16]; const paymentMethod = row[17]; const googleEventId = row[19]; if (!clientName || !datePart) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = datePart.split('/'); if (day && month && year) isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`; } catch (e) { } const cleanPhone = clientPhone.replace(/\D/g, '') || `temp_${idx}`; let client = currentClients.find(c => c.id === cleanPhone) || currentClients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone); if (!client) { client = { id: cleanPhone, name: clientName, phone: clientPhone, address: clientAddr, pets: [] }; newTempClients.push(client); } let pet = client.pets.find(p => p.name.toLowerCase() === petName?.toLowerCase()); if (!pet && petName) { pet = { id: `${client.id}_p_${idx}`, name: petName, breed: petBreed || 'SRD', age: '', gender: '', size: row[5] || '', coat: row[6] || '', notes: row[13] || '' }; client.pets.push(pet); } const currentServices = db.getServices(); const service = currentServices.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || currentServices[0]; const addServiceIds: string[] = [];[row[8], row[9], row[10]].forEach(name => { if (name) { const foundSvc = currentServices.find(s => s.name.toLowerCase() === name.toLowerCase().trim()); if (foundSvc) addServiceIds.push(foundSvc.id); } }); let paidAmount = 0;
-                if (paidAmountStr) { paidAmount = parseFloat(paidAmountStr.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')); if (isNaN(paidAmount)) paidAmount = 0; }
 
-                // Parse Rating logic
-                let rating = 0;
-                let ratingTags: string[] = [];
-                const notes = row[13] || '';
-                const ratingMatch = notes.match(/\[Avaliação: (\d+)\/5\]/);
-                if (ratingMatch && ratingMatch[1]) rating = parseInt(ratingMatch[1]);
-                const tagsMatch = notes.match(/\[Tags: (.*?)\]/);
-                if (tagsMatch && tagsMatch[1]) { ratingTags = tagsMatch[1].split(',').map(t => t.trim()); }
-
-                if (client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: 'agendado', notes: row[13], durationTotal: parseInt(row[14] || '60'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: googleEventId, rating: rating > 0 ? rating : undefined, ratingTags: ratingTags.length > 0 ? ratingTags : undefined }); }
-            }); if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); } if (loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if (!silent) alert(`${loadedApps.length} agendamentos carregados!`); } else { if (!silent) alert('Nenhum agendamento encontrado.'); }
-        } catch (error) { console.error(error); if (!silent) alert('Erro ao sincronizar agendamentos.'); }
-    };
-    const handleAddAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
-        // ... [Add Appointment Logic same as before] ...
-        let googleEventId = ''; const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
-        if (accessToken) { const description = appServices.map(s => s.name).join(' + '); const googleResponse = await googleService.createEvent(accessToken, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration }); if (googleResponse) googleEventId = googleResponse.id; }
-        const newApp = { ...app, googleEventId, durationTotal: totalDuration };
-        const updatedApps = [...appointments, newApp];
-        setAppointments(updatedApps);
-        db.saveAppointments(updatedApps);
-        if (accessToken && SHEET_ID) {
-            try {
-                const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                const mainSvc = appServices[0];
-                const rowData = [
-                    pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
-                    appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Agendado', '', '', '', googleEventId
-                ];
-                await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
-                // Silent Sync to update IDs
-                handleSyncAppointments(accessToken, true);
-            } catch (e) { console.error(e); alert("Salvo no app, mas erro na planilha."); }
-        }
-    };
-
-    const handleEditAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
-        const googleEventId = app.googleEventId; const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
-        const updatedApp = { ...app, durationTotal: totalDuration };
-        if (accessToken && googleEventId) {
-            const description = appServices.map(s => s.name).join(' + ');
-            await googleService.updateEvent(accessToken, googleEventId, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration });
-        }
-        const updatedList = appointments.map(a => a.id === app.id ? updatedApp : a);
-        setAppointments(updatedList); db.saveAppointments(updatedList);
-        if (app.id.startsWith('sheet_') && accessToken && SHEET_ID) {
-            try {
-                const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
-                const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                const mainSvc = appServices[0];
-                const rowData = [
-                    pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
-                    appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Agendado', '', app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '', app.paymentMethod || '', googleEventId
-                ];
-                await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`, rowData);
-            } catch (e) { console.error(e); alert("Erro ao atualizar planilha."); }
-        }
-    };
-
-    const handleDeleteAppointment = async (id: string) => {
-        if (!confirm("Tem certeza que deseja excluir?")) return;
-        const app = appointments.find(a => a.id === id);
-        if (app && app.googleEventId && accessToken) { await googleService.deleteEvent(accessToken, app.googleEventId); }
-        const updated = appointments.filter(a => a.id !== id);
-        setAppointments(updated); db.saveAppointments(updated);
-        if (id.startsWith('sheet_') && accessToken && SHEET_ID) {
-            try {
-                const parts = id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
-                await googleService.clearSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`);
-            } catch (e) { console.error(e); }
-        }
-    };
-
-    const handleUpdateStatus = (id: string, status: Appointment['status']) => {
-        const updated = appointments.map(a => a.id === id ? { ...a, status } : a);
-        setAppointments(updated);
-        db.saveAppointments(updated);
-    }
-
-    // --- PIN LOGIC Handlers ---
-    const handlePinUnlock = (input: string) => { if (input === pin) { setIsPinUnlocked(true); return true; } return false; };
-    const handleSetPin = (newPin: string) => { localStorage.setItem('petgestor_pin', newPin); setPin(newPin); setIsPinUnlocked(true); };
-
-    if (!isConfigured) return <SetupScreen onSave={handleSaveConfig} />;
-
-    if (!googleUser) return <LoginScreen onLogin={googleService.login} onReset={handleResetConfig} settings={settings} googleLoaded={googleLoaded} />;
-
-    // if (isGlobalLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-brand-50"><Loader2 size={48} className="text-brand-600 animate-spin mb-4" /><p className="text-brand-700 font-bold animate-pulse">Sincronizando dados...</p></div>;
-
-    // Views that require PIN
-    const secureViews: ViewState[] = ['revenue', 'costs'];
-    if (secureViews.includes(currentView) && !isPinUnlocked) {
-        return <PinGuard isUnlocked={false} onUnlock={handlePinUnlock} onSetPin={handleSetPin} hasPin={!!pin} onReset={handleLogout} setView={setCurrentView} />;
-    }
-
-    return (
-        <HashRouter>
-            <Layout
-                currentView={currentView}
-                setView={setCurrentView}
-                googleUser={googleUser}
-                onLogin={googleService.login}
-                onLogout={handleLogout}
-                settings={settings}
-                onOpenSettings={() => setIsSettingsOpen(true)}
-                isLoading={isGlobalLoading}
-                onManualRefresh={async () => { if (accessToken) await performFullSync(accessToken); else window.location.reload(); }}
-            >
-                {currentView === 'home' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="daily" />}
-                {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="monthly" />}
-                {currentView === 'costs' && <CostsView costs={costs} />}
-                {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} accessToken={accessToken} sheetId={SHEET_ID} />}
-                {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
-                {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
-                {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
-                {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
-            </Layout>
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
-        </HashRouter>
-    );
-}
-
-export default App;
+    export default App;
