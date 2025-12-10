@@ -953,7 +953,7 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
                     {services.map((service, index) => (
                         <div key={service.id} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-3xl shadow-sm border border-white/50 flex flex-col justify-between cursor-pointer hover:shadow-glass hover:scale-[1.02] transition-all duration-300 select-none group relative">
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500"><Edit2 size={12} /></div>
+                                <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleEditStart(service); }}><Edit2 size={12} /></div>
                             </div>
                             <div>
                                 <div className="flex justify-between items-start mb-2">
