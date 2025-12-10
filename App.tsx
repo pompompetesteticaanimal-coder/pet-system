@@ -484,17 +484,18 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
                 <section key={selectedDate} className={animationClass}>
                     <div className="sticky top-0 z-30 flex justify-between items-center mb-4 bg-white/90 backdrop-blur-md p-3 rounded-xl border border-gray-200 shadow-sm transition-all">
                         <h2 className="text-lg font-bold text-gray-800">Diário</h2>
-                        <label className="relative text-sm font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1 rounded-lg transition-colors cursor-pointer group flex items-center gap-1 z-50 select-none">
+                        <div className="relative text-sm font-bold text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1 rounded-lg transition-colors cursor-pointer group flex items-center gap-1 z-50 select-none" onClick={() => document.getElementById('daily-date-picker')?.showPicker()}>
                             <span className="pointer-events-none">{formatDateWithWeek(selectedDate)}</span>
                             <ChevronDown size={14} className="opacity-50 pointer-events-none" />
                             <input
+                                id="daily-date-picker"
                                 type="date"
                                 value={selectedDate}
                                 onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value); }}
                                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-50 appearance-none"
-                                onClick={(e) => e.stopPropagation()} // Prevent bubble issues
+                                onClick={(e) => e.stopPropagation()}
                             />
-                        </label>
+                        </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"><StatCard title="Total de Pets" value={dailyStats.totalPets} icon={PawPrint} colorClass="bg-blue-500" /><StatCard title="Total de Tosas" value={dailyStats.totalTosas} icon={Scissors} colorClass="bg-orange-500" subValue="Normal e Tesoura" /><StatCard title="Caixa Pago" value={`R$ ${dailyStats.paidRevenue.toFixed(2)}`} icon={CheckCircle} colorClass="bg-green-500" /><StatCard title="A Receber" value={`R$ ${dailyStats.pendingRevenue.toFixed(2)}`} icon={AlertCircle} colorClass="bg-red-500" /></div>
                     <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-glass border border-white/40 overflow-hidden mt-6">
