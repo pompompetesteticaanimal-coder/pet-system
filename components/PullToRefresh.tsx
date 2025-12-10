@@ -12,8 +12,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, childre
     const [pullDistance, setPullDistance] = useState(0);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const PULL_THRESHOLD = 80;
-    const MAX_PULL = 120;
+    const PULL_THRESHOLD = 150;
+    const MAX_PULL = 220;
 
     const handleTouchStart = (e: React.TouchEvent) => {
         if (scrollRef.current && scrollRef.current.scrollTop === 0) {
@@ -36,7 +36,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, childre
 
         if (diff > 0) {
             // Add resistance
-            const dampedDiff = Math.min(diff * 0.5, MAX_PULL);
+            const dampedDiff = Math.min(diff * 0.4, MAX_PULL);
             setPullDistance(dampedDiff);
             // Prevent native scroll/refresh if we are pulling
             if (e.cancelable && diff > 5) {
