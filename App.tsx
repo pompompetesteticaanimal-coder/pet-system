@@ -208,7 +208,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
     };
 
     const calculateGrossRevenue = (app: Appointment) => {
-        if (app.status === 'cancelado') return 0;
+        if (app.status === 'cancelado' || app.status === 'nao_veio') return 0;
         if (app.paidAmount && app.paidAmount > 0) return app.paidAmount;
         const mainSvc = services.find(s => s.id === app.serviceId);
         let total = mainSvc?.price || 0;
@@ -219,7 +219,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
     const calculateStats = (apps: Appointment[]) => {
         let totalPets = 0; let totalTosas = 0; let paidRevenue = 0; let pendingRevenue = 0;
         apps.forEach(app => {
-            if (app.status === 'cancelado') return;
+            if (app.status === 'cancelado' || app.status === 'nao_veio') return;
             // ... (rest of logic same)
             totalPets++;
             const isTargetTosa = (name?: string) => { if (!name) return false; const n = name.toLowerCase(); return n.includes('tosa normal') || n.includes('tosa tesoura'); };
