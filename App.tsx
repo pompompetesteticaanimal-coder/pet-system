@@ -1010,7 +1010,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     useEffect(() => {
         const updateNow = () => {
             const now = new Date();
-            const mins = (now.getHours() - 9) * 60 + now.getMinutes();
+            const mins = (now.getHours() - 8) * 60 + now.getMinutes();
             setNowMinutes(mins);
         };
         updateNow();
@@ -1107,7 +1107,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
         setCurrentDate(newDate);
     };
-    const timeOptions = []; for (let h = 9; h <= 18; h++) { ['00', '10', '20', '30', '40', '50'].forEach(m => { if (h === 18 && m !== '00') return; timeOptions.push(`${String(h).padStart(2, '0')}:${m}`); }); }
+    const timeOptions: string[] = []; for (let h = 8; h <= 19; h++) { ['00', '10', '20', '30', '40', '50'].forEach(m => { if (h === 19 && m !== '00') return; timeOptions.push(`${String(h).padStart(2, '0')}:${m}`); }); }
 
     const handleTouchStart = (e: React.TouchEvent) => touchStart.current = e.touches[0].clientX;
     const handleTouchEnd = (e: React.TouchEvent) => {
@@ -1202,10 +1202,10 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         const animationClass = slideDirection === 'right' ? 'animate-slide-right' : slideDirection === 'left' ? 'animate-slide-left' : '';
         const dateStr = currentDate.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps);
         return (
-            <div key={dateStr} className={`relative h-[1200px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-                <div className="w-14 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex-shrink-0 sticky left-0 z-10 flex flex-col"> {Array.from({ length: 10 }, (_, i) => i + 9).map(h => (<div key={h} className="flex-1 border-b border-gray-100 text-[10px] text-gray-400 font-bold p-2 text-right relative"> <span className="-top-2.5 relative">{h}:00</span> </div>))} </div>
+            <div key={dateStr} className={`relative h-[1440px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+                <div className="w-14 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex-shrink-0 sticky left-0 z-10 flex flex-col"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="flex-1 border-b border-gray-100 text-[10px] text-gray-400 font-bold p-2 text-right relative"> <span className="-top-2.5 relative">{h}:00</span> </div>))} </div>
                 <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,rgba(243,244,246,0.6)_120px)]"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)} {layoutItems.map((item: any, idx) => {
-                    const app = item.app; const d = new Date(app.date); const startMin = (d.getHours() - 9) * 60 + d.getMinutes();
+                    const app = item.app; const d = new Date(app.date); const startMin = (d.getHours() - 8) * 60 + d.getMinutes();
                     const originalHeight = (app.durationTotal || 60) * 2;
                     // Apply Vertical Stack Math
                     const count = item.stackTotal || 1;
@@ -1216,7 +1216,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                     return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} stackIndex={index} stackTotal={count} />);
                 })}
                     {/* Current Time Indicator */}
-                    {nowMinutes >= 0 && nowMinutes <= 600 && (
+                    {nowMinutes >= 0 && nowMinutes <= 720 && (
                         <div className="absolute w-full border-t-2 border-red-500 border-dashed opacity-70 pointer-events-none z-20 flex items-center" style={{ top: `${nowMinutes * 2}px` }}>
                             <div className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-r shadow-sm absolute -top-2.5 left-0">Agora</div>
                             <div className="w-2 h-2 bg-red-500 rounded-full absolute -top-1 -right-1" />
@@ -1232,9 +1232,9 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         return (
             <div className="flex h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex-col mx-1">
                 <div className="flex border-b border-gray-100 bg-gray-50/50 backdrop-blur-sm"> <div className="w-10 bg-transparent border-r border-gray-100"></div> {days.map(dIdx => { const d = new Date(start); d.setDate(d.getDate() + dIdx); const isToday = d.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]; return (<div key={dIdx} className={`flex-1 text-center py-3 text-xs font-bold border-r border-gray-100 ${isToday ? 'bg-brand-50/50 text-brand-600' : 'text-gray-500'}`}> {d.toLocaleDateString('pt-BR', { weekday: 'short' }).toUpperCase()} <div className={`text-sm mt-0.5 ${isToday ? 'text-brand-700' : 'text-gray-800'}`}>{d.getDate()}</div> </div>) })} </div>
-                <div className="flex-1 overflow-y-auto relative flex"> <div className="w-10 bg-gray-50/30 border-r border-gray-100 flex-shrink-0 sticky left-0 z-10"> {Array.from({ length: 10 }, (_, i) => i + 9).map(h => (<div key={h} className="h-[120px] border-b border-gray-100 text-[9px] text-gray-400 font-bold p-1 text-right relative bg-gray-50/30"> <span className="-top-2 relative">{h}</span> </div>))} </div> {days.map(dIdx => {
+                <div className="flex-1 overflow-y-auto relative flex"> <div className="w-10 bg-gray-50/30 border-r border-gray-100 flex-shrink-0 sticky left-0 z-10"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="h-[120px] border-b border-gray-100 text-[9px] text-gray-400 font-bold p-1 text-right relative bg-gray-50/30"> <span className="-top-2 relative">{h}</span> </div>))} </div> {days.map(dIdx => {
                     const d = new Date(start); d.setDate(d.getDate() + dIdx); const dateStr = d.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps); return (<div key={dIdx} className="flex-1 border-r border-gray-50 relative min-w-[60px]"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)} {layoutItems.map((item: any, idx) => {
-                        const app = item.app; const ad = new Date(app.date); const startMin = (ad.getHours() - 9) * 60 + ad.getMinutes();
+                        const app = item.app; const ad = new Date(app.date); const startMin = (ad.getHours() - 8) * 60 + ad.getMinutes();
                         const originalHeight = (app.durationTotal || 60) * 2;
                         // Apply Vertical Stack Math
                         const count = item.stackTotal || 1;
