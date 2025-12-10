@@ -957,7 +957,7 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
             <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {services.map((service, index) => (
-                        <div key={service.id} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-3xl shadow-sm border border-white/50 flex flex-col justify-between cursor-pointer hover:shadow-glass hover:scale-[1.02] transition-all duration-300 select-none group relative">
+                        <div key={service.id} onClick={() => setViewService(service)} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-3xl shadow-sm border border-white/50 flex flex-col justify-between cursor-pointer hover:shadow-glass hover:scale-[1.02] transition-all duration-300 select-none group relative">
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500"><Edit2 size={12} /></div>
                             </div>
@@ -977,6 +977,45 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
                     ))}
                 </div>
             </div>
+
+            {/* Service Details Modal */}
+            {viewService && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in" onClick={() => setViewService(null)}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-6">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-1">{viewService.name}</h2>
+                            <p className="text-gray-500 text-sm mb-4">{viewService.description || 'Sem descrição.'}</p>
+
+                            <div className="flex gap-2 mb-6">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${viewService.category === 'principal' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{viewService.category}</span>
+                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 uppercase">{viewService.targetSize}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center mb-8 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <div>
+                                    <span className="block text-xs uppercase font-bold text-gray-400">Preço</span>
+                                    <span className="text-xl font-black text-gray-900">R$ {viewService.price.toFixed(2)}</span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="block text-xs uppercase font-bold text-gray-400">Tempo</span>
+                                    <span className="text-xl font-black text-gray-900">{viewService.durationMin} min</span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button onClick={() => setViewService(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl active:scale-95 transition-transform">Fechar</button>
+                                <button onClick={() => {
+                                    setNewService({ ...viewService });
+                                    setIsNewServiceModalOpen(true);
+                                    setViewService(null);
+                                }} className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-200 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                                    <Edit2 size={16} /> Editar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {contextMenu && (
                 <div className="fixed bg-white/90 backdrop-blur-xl shadow-2xl border border-white/20 rounded-2xl z-[100] py-2 min-w-[170px] animate-scale-up glass-card" style={{ top: contextMenu.y, left: contextMenu.x }}>
