@@ -176,7 +176,7 @@ const CustomXAxisTick = ({ x, y, payload, data }: any) => {
     );
 };
 
-const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; clients: Client[]; costs: CostItem[]; defaultTab?: 'daily' | 'weekly' | 'monthly' | 'yearly'; onRemovePayment: (app: Appointment) => void }> = ({ appointments, services, clients, costs, defaultTab = 'daily', onRemovePayment }) => {
+const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; clients: Client[]; costs: CostItem[]; defaultTab?: 'daily' | 'weekly' | 'monthly' | 'yearly'; onRemovePayment: (app: Appointment) => void; onNoShow?: (app: Appointment) => void }> = ({ appointments, services, clients, costs, defaultTab = 'daily', onRemovePayment, onNoShow }) => {
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>(defaultTab);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -533,8 +533,13 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
                                                     <div className="text-right">
                                                         <div className={`font-bold ${isPaid ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-300'}`}>R$ {val.toFixed(2)}</div>
                                                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${isPaid ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-                                                            {isPaid ? 'Pago' : 'Pendente'}
+                                                            {isPaid ? 'Pago' : app.status === 'nao_veio' ? 'Não Veio' : 'Pendente'}
                                                         </span>
+                                                        {(!isPaid && app.status !== 'nao_veio' && app.status !== 'cancelado' && onNoShow) && (
+                                                            <button onClick={() => onNoShow(app)} className="ml-2 px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-500 text-[9px] font-bold rounded uppercase border border-red-100 transition-colors">
+                                                                Não Veio
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <div className="mt-2 flex flex-wrap gap-1">
@@ -663,7 +668,7 @@ const CostsView: React.FC<{ costs: CostItem[] }> = ({ costs }) => {
     );
 };
 
-const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onUpdateAppointment: (app: Appointment) => void; onRemovePayment: (app: Appointment) => void; accessToken: string | null; sheetId: string; }> = ({ appointments, clients, services, onUpdateAppointment, onRemovePayment, accessToken, sheetId }) => {
+const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onUpdateAppointment: (app: Appointment) => void; onRemovePayment: (app: Appointment) => void; onNoShow: (app: Appointment) => void; accessToken: string | null; sheetId: string; }> = ({ appointments, clients, services, onUpdateAppointment, onRemovePayment, onNoShow, accessToken, sheetId }) => {
     const getLocalISODate = (d: Date = new Date()) => { const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; };
     const [selectedDate, setSelectedDate] = useState(getLocalISODate()); const [editingId, setEditingId] = useState<string | null>(null); const [amount, setAmount] = useState(''); const [method, setMethod] = useState(''); const [isSaving, setIsSaving] = useState(false); const [activeTab, setActiveTab] = useState<'toReceive' | 'pending' | 'paid' | 'noShow'>('toReceive'); const [contextMenu, setContextMenu] = useState<{ x: number, y: number, app: Appointment } | null>(null);
     const [showEvaluationModal, setShowEvaluationModal] = useState(false);
@@ -744,22 +749,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
         setShowEvaluationModal(false);
     };
 
-    const handleNoShow = async (app: Appointment) => {
-        if (!confirm(`Marcar ${clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name} como "Não Veio"?`)) return;
-        const note = `${app.notes || ''} [NÃO VEIO]`.trim();
-        const updatedApp = { ...app, status: 'nao_veio' as const, notes: note };
-        onUpdateAppointment(updatedApp);
 
-        if (app.id.startsWith('sheet_') && accessToken && sheetId) {
-            try {
-                const parts = app.id.split('_');
-                const row = parseInt(parts[1]) + 1;
-                // Update OBS (Col N) with [NÃO VEIO] marker and Status (Col P)
-                await googleService.updateSheetValues(accessToken, sheetId, `Agendamento!N${row}`, [note]);
-                await googleService.updateSheetValues(accessToken, sheetId, `Agendamento!P${row}`, ['Não Veio']);
-            } catch (e) { console.error(e); alert('Erro ao sincronizar status.'); }
-        }
-    };
 
     const handleTouchStart = (e: React.TouchEvent) => touchStart.current = e.touches[0].clientX;
     const handleTouchEnd = (e: React.TouchEvent) => {
@@ -816,7 +806,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
                         </button>
                     )}
                     {!isPaid && statusColor !== 'bg-gray-100 opacity-75' && (
-                        <button onClick={() => handleNoShow(app)} className="px-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl flex items-center justify-center font-bold text-xs transition-all border border-red-100 active:scale-95 whitespace-nowrap">Não Veio</button>
+                        <button onClick={() => onNoShow(app)} className="px-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl flex items-center justify-center font-bold text-xs transition-all border border-red-100 active:scale-95 whitespace-nowrap">Não Veio</button>
                     )}
                 </div>
             </div>
@@ -2073,6 +2063,36 @@ const App: React.FC = () => {
         }
     };
 
+    const handleNoShow = async (app: Appointment) => {
+        if (!confirm('Tem certeza que deseja marcar este agendamento como "Não Compareceu"?')) return;
+
+        const updatedApps = appointments.map((a): Appointment => {
+            if (a.id === app.id) {
+                return { ...a, status: 'nao_veio' };
+            }
+            return a;
+        });
+        setAppointments(updatedApps);
+        db.saveAppointments(updatedApps);
+
+        if (app.id.startsWith('sheet_') && accessToken && SHEET_ID) {
+            try {
+                const idx = parseInt(app.id.split('_')[1]);
+                if (!isNaN(idx)) {
+                    const row = idx + 1; // Sheet rows are 1-indexed, and we skip header rows
+                    // Assuming status is in column P (index 15)
+                    await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!P${row}:P${row}`, [['Não Veio']]);
+                    // Add Note if needed, logic copied from old handler if notes update is desired
+                    const note = `${app.notes || ''} [NÃO VEIO]`.trim();
+                    await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!N${row}`, [note]);
+                }
+            } catch (e) {
+                console.error("Erro ao marcar como 'Não Compareceu' na planilha:", e);
+                alert("Erro ao sincronizar status 'Não Compareceu' na planilha.");
+            }
+        }
+    };
+
     const handleUpdateStatus = (id: string, status: Appointment['status']) => {
         const updated = appointments.map(a => a.id === id ? { ...a, status } : a);
         setAppointments(updated);
@@ -2108,10 +2128,16 @@ const App: React.FC = () => {
                 isLoading={isGlobalLoading}
                 onManualRefresh={async () => { if (accessToken) await performFullSync(accessToken); else window.location.reload(); }}
             >
-                {currentView === 'home' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="daily" onRemovePayment={handleRemovePayment} />}
-                {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="monthly" onRemovePayment={handleRemovePayment} />}
+                {currentView === 'home' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="daily" onRemovePayment={handleRemovePayment} onNoShow={handleNoShow} />}
+                {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="monthly" onRemovePayment={handleRemovePayment} onNoShow={handleNoShow} />}
                 {currentView === 'costs' && <CostsView costs={costs} />}
-                {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services} onUpdateAppointment={handleUpdateApp} onRemovePayment={handleRemovePayment} accessToken={accessToken} sheetId={SHEET_ID} />}
+                {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services}
+                    onUpdateAppointment={handleUpdateApp}
+                    onRemovePayment={handleRemovePayment}
+                    onNoShow={handleNoShow}
+                    accessToken={accessToken}
+                    sheetId={SHEET_ID}
+                />}
                 {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
                 {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
