@@ -1126,13 +1126,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     };
     const timeOptions: string[] = []; for (let h = 8; h <= 19; h++) { ['00', '10', '20', '30', '40', '50'].forEach(m => { if (h === 19 && m !== '00') return; timeOptions.push(`${String(h).padStart(2, '0')}:${m}`); }); }
 
-    const handleTouchStart = (e: React.TouchEvent) => touchStart.current = e.touches[0].clientX;
-    const handleTouchEnd = (e: React.TouchEvent) => {
-        if (!touchStart.current) return;
-        const diff = touchStart.current - e.changedTouches[0].clientX;
-        if (viewMode === 'day' && Math.abs(diff) > 100) navigate(diff > 0 ? 'next' : 'prev');
-        touchStart.current = null;
-    };
+
 
     // --- SIDE-BY-SIDE LAYOUT ALGORITHM ---
     const getLayout = (dayApps: Appointment[]) => {
@@ -1212,7 +1206,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         const animationClass = slideDirection === 'right' ? 'animate-slide-right' : slideDirection === 'left' ? 'animate-slide-left' : '';
         const dateStr = currentDate.toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado'); const layoutItems = getLayout(dayApps);
         return (
-            <div key={dateStr} className={`relative h-[1440px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+            <div key={dateStr} className={`relative h-[1440px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`}>
                 <div className="w-14 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex-shrink-0 sticky left-0 z-10 flex flex-col"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="flex-1 border-b border-gray-100 text-[10px] text-gray-400 font-bold p-2 text-right relative"> <span className="-top-2.5 relative">{h}:00</span> </div>))} </div>
                 <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,rgba(243,244,246,0.6)_120px)] overflow-x-auto"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)} {layoutItems.map((item: any, idx) => {
                     const app = item.app; const d = new Date(app.date); const startMin = (d.getHours() - 8) * 60 + d.getMinutes();
