@@ -112,10 +112,14 @@ const GreetingBar = () => {
 
       {/* Logo Bar (Slides Down to appear) */}
       <div
-        className={`bg-white/90 backdrop-blur-md border-b border-gray-100 w-full py-3 px-6 flex justify-center items-center shadow-sm absolute top-0 transition-all duration-700 ease-out ${phase === 'logo' ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+        className={`bg-white/90 backdrop-blur-md border-b border-pink-50 w-full py-3 px-6 flex justify-start pl-8 items-center gap-3 shadow-sm absolute top-0 transition-all duration-700 ease-out ${phase === 'logo' ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
           }`}
       >
-        <span className="font-bold text-xl text-brand-600 tracking-tight font-serif">PomPomPet</span>
+        <div className="flex items-center -space-x-1">
+          <span className="text-2xl animate-bounce-slow" style={{ animationDelay: '0.1s' }}>🐶</span>
+          <span className="text-2xl animate-bounce-slow" style={{ animationDelay: '0.3s' }}>🐱</span>
+        </div>
+        <span className="font-extrabold text-2xl text-pink-400 tracking-tight" style={{ fontFamily: '"Varela Round", "Nunito", "Segoe UI", sans-serif' }}>PomPomPet</span>
       </div>
 
       {/* Spacer to push content down depending on what's visible. 
