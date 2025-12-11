@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { ViewState, GoogleUser, AppSettings } from '../types';
-import { LayoutDashboard, Users, Calendar, Scissors, LogIn, LogOut, Wallet, ChevronLeft, TrendingUp, TrendingDown, Lock, Settings, Home, Menu, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Scissors, LogIn, LogOut, Wallet, ChevronLeft, TrendingUp, TrendingDown, Lock, Settings, Home, Menu, BarChart2, Package } from 'lucide-react';
 import { PullToRefresh } from './PullToRefresh';
 
 interface LayoutProps {
@@ -93,6 +93,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
       <div className="pt-4 pb-4" key="cadastros">
         <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Cadastros</p>
         <div className="space-y-1">
+          <NavItem view="packages" current={currentView} icon={Package} label="Pacotes" onClick={setView} />
           <NavItem view="clients" current={currentView} icon={Users} label="Clientes" onClick={setView} />
           <NavItem view="services" current={currentView} icon={Scissors} label="Serviços" onClick={setView} />
         </div>
@@ -187,10 +188,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
         </div>
       )}
 
-
-
-
-
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 via-transparent to-purple-50/50 pointer-events-none" />
@@ -213,7 +210,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
             <Calendar size={28} />
           </button>
         </div>
-        <BottomNavItem view="clients" current={currentView} icon={Users} label="Clientes" onClick={setView} />
+        {/* REPLACED Clients with Packages */}
+        <BottomNavItem view="packages" current={currentView} icon={Package} label="Pacotes" onClick={setView} />
         <BottomNavItem view="menu" current={currentView} icon={Menu} label="Menu" onClick={setView} />
       </div>
     </div>

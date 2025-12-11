@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { createPortal } from 'react-dom';
@@ -9,6 +8,7 @@ import { PetDetailsModal } from './components/PetDetailsModal';
 import { db } from './services/db';
 import { googleService, DEFAULT_CLIENT_ID } from './services/googleCalendar';
 import { Client, Service, Appointment, ViewState, Pet, GoogleUser, CostItem, AppSettings } from './types';
+import PackageControlView from './components/PackageControlView';
 import {
     Plus, Trash2, Check, X,
     Sparkles, DollarSign, Calendar as CalendarIcon, MapPin,
@@ -2006,6 +2006,13 @@ const MenuView: React.FC<{ setView: (v: ViewState) => void, onOpenSettings: () =
                         <span className="text-sm text-gray-400 font-medium">Tema e preferências</span>
                     </div>
                     <ChevronRight className="ml-auto text-gray-300" />
+                </button>                <button onClick={() => setView('clients')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
+                    <div className="w-16 h-16 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><Users size={32} /></div>
+                    <div className="text-left">
+                        <span className="block text-xl font-bold text-gray-800">Clientes</span>
+                        <span className="text-sm text-gray-400 font-medium">Gerenciar cadastros</span>
+                    </div>
+                    <ChevronRight className="ml-auto text-gray-300" />
                 </button>
 
                 <button onClick={() => setView('inactive_clients')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
@@ -2400,6 +2407,7 @@ const App: React.FC = () => {
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
                 {currentView === 'inactive_clients' && <InactiveClientsView clients={clients} appointments={appointments} services={services} contactLogs={contactLogs} onMarkContacted={handleMarkContacted} onBack={() => setCurrentView('menu')} />}
+                {currentView === 'packages' && <PackageControlView clients={clients} appointments={appointments} services={services} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
             <PetDetailsModal
