@@ -1368,7 +1368,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                         return (
                             <div key={idx} className={`border-b border-r border-gray-100 p-1 flex flex-col transition-colors cursor-pointer hover:bg-brand-50/30 ${isToday ? 'bg-orange-50/30' : ''}`} onClick={() => { setDate(dateStr); setViewMode('day'); }}>
                                 <span className={`text-[10px] font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 transition-all ${isToday ? 'bg-brand-600 text-white shadow-md scale-110' : 'text-gray-500'}`}>{date.getDate()}</span>
-                                <div className={`flex-1 space-y-1 min-h-0 ${hasManyApps ? 'overflow-y-auto custom-scrollbar' : 'overflow-hidden'}`} onClick={(e) => hasManyApps && e.stopPropagation()}>
+                                <div className={`flex-1 space-y-1 min-h-0 ${hasManyApps ? 'overflow-y-auto custom-scrollbar overscroll-contain' : 'overflow-hidden'}`} onClick={(e) => hasManyApps && e.stopPropagation()} onWheel={(e) => hasManyApps && e.stopPropagation()} onTouchMove={(e) => hasManyApps && e.stopPropagation()}>
                                     {dayApps.map(app => (
                                         <div key={app.id} className="text-[9px] bg-white border border-gray-200 text-gray-700 rounded-md px-1.5 py-0.5 truncate font-medium shadow-sm">
                                             {clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name}
