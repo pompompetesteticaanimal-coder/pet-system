@@ -193,8 +193,13 @@ const DayDetailsModal: React.FC<{ isOpen: boolean; onClose: () => void; date: st
     const dateObj = new Date(y, m - 1, d);
     const sortedApps = [...appointments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
+    useEffect(() => {
+        if (isOpen) document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [isOpen]);
+
     return (
-        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={onClose} style={{ overflow: 'hidden' }}>
             <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-up" onClick={e => e.stopPropagation()}>
                 <div className="bg-brand-50 p-6 border-b border-brand-100 flex justify-between items-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10 text-brand-500 transform rotate-12 pointer-events-none">
