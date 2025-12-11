@@ -1902,14 +1902,17 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                 </div>,
                 document.body)}
             {/* Day Details Modal */}
-            <DayDetailsModal
-                isOpen={!!selectedDayForDetails}
-                onClose={() => setSelectedDayForDetails(null)}
-                date={selectedDayForDetails || ''}
-                appointments={appointments.filter(a => a.date.startsWith(selectedDayForDetails || '') && a.status !== 'cancelado')}
-                clients={clients}
-                services={services}
-            />
+            {selectedDayForDetails && createPortal(
+                <DayDetailsModal
+                    isOpen={!!selectedDayForDetails}
+                    onClose={() => setSelectedDayForDetails(null)}
+                    date={selectedDayForDetails || ''}
+                    appointments={appointments.filter(a => a.date.startsWith(selectedDayForDetails || '') && a.status !== 'cancelado')}
+                    clients={clients}
+                    services={services}
+                />,
+                document.body
+            )}
         </div>
     );
 };
