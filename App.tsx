@@ -1405,7 +1405,7 @@ const App: React.FC = () => {
             if (Date.now() < parseInt(storedExpiry)) {
                 setAccessToken(storedToken);
                 setGoogleUser(JSON.parse(storedUser));
-                performFullSync(storedToken);
+                performFullSync(storedToken, true);
             } else {
                 localStorage.removeItem(STORAGE_KEY_TOKEN);
                 localStorage.removeItem(STORAGE_KEY_EXPIRY);
@@ -1447,17 +1447,54 @@ const App: React.FC = () => {
 
     }, [settings.theme, settings.darkMode]);
 
-    const performFullSync = async (token: string) => { if (!SHEET_ID) return; setIsGlobalLoading(true); try { await handleSyncServices(token, true); await handleSyncClients(token, true); await handleSyncAppointments(token, true); await handleSyncCosts(token, true); } catch (e) { console.error("Auto Sync Failed", e); } finally { setIsGlobalLoading(false); } }
+    const performFullSync = async (token: string, silent = true) => {
+        if (!SHEET_ID) {
+            if (!silent) alert('ID da Planilha não configurado.');
+            return;
+        }
+        setIsGlobalLoading(true);
+        try {
+            await handleSyncServices(token, silent);
+            await handleSyncClients(token, silent);
+            await handleSyncAppointments(token, silent);
+            await handleSyncCosts(token, silent);
+            if (!silent) alert('Sincronização concluída com sucesso!');
+        } catch (e: any) {
+            console.error("Auto Sync Failed", e);
+            if (!silent) alert(`Falha na sincronização: ${e.message || e}`);
+        } finally {
+            setIsGlobalLoading(false);
+        }
+    }
 
-    const initAuthLogic = () => { if ((window as any).google) { googleService.init(async (tokenResponse: any) => { if (tokenResponse && tokenResponse.access_token) { const token = tokenResponse.access_token; const expiresIn = tokenResponse.expires_in || 3599; localStorage.setItem(STORAGE_KEY_TOKEN, token); localStorage.setItem(STORAGE_KEY_EXPIRY, (Date.now() + (expiresIn * 1000)).toString()); setAccessToken(token); const profile = await googleService.getUserProfile(token); if (profile) { const user = { id: profile.id, name: profile.name, email: profile.email, picture: profile.picture }; setGoogleUser(user); localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user)); } performFullSync(token); } }); } };
+    const initAuthLogic = () => { if ((window as any).google) { googleService.init(async (tokenResponse: any) => { if (tokenResponse && tokenResponse.access_token) { const token = tokenResponse.access_token; const expiresIn = tokenResponse.expires_in || 3599; localStorage.setItem(STORAGE_KEY_TOKEN, token); localStorage.setItem(STORAGE_KEY_EXPIRY, (Date.now() + (expiresIn * 1000)).toString()); setAccessToken(token); const profile = await googleService.getUserProfile(token); if (profile) { const user = { id: profile.id, name: profile.name, email: profile.email, picture: profile.picture }; setGoogleUser(user); localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user)); } performFullSync(token, true); } }); } };
     const handleLogout = () => { setAccessToken(null); setGoogleUser(null); setIsPinUnlocked(false); localStorage.removeItem(STORAGE_KEY_TOKEN); localStorage.removeItem(STORAGE_KEY_EXPIRY); localStorage.removeItem(STORAGE_KEY_USER); if ((window as any).google) (window as any).google.accounts.id.disableAutoSelect(); }
     const handleSaveConfig = (id: string) => { localStorage.setItem('petgestor_client_id', id); setIsConfigured(true); window.location.reload(); };
     const handleResetConfig = () => { localStorage.removeItem('petgestor_client_id'); setIsConfigured(false); setGoogleUser(null); };
 
+    const handleSaveSheetId = (id: string) => {
+        const cleanedId = id.trim();
+        if (cleanedId) {
+            localStorage.setItem('petgestor_sheet_id', cleanedId);
+            window.location.reload();
+        }
+    };
+
+    const handleManualSync = async () => {
+        if (!accessToken) {
+            alert('Você precisa estar logado no Google para sincronizar.');
+            googleService.login();
+            return;
+        }
+        await performFullSync(accessToken, false);
+    };
+
+
+
     const handleSyncCosts = async (token: string, silent = false) => {
         // ... [Sync Costs Logic same as before] ...
         if (!token || !SHEET_ID) return;
-        try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'Custo Mensal!A:F'); if (!rows || rows.length < 2) return; const loadedCosts: CostItem[] = []; rows.slice(1).forEach((row: string[], idx: number) => { const dateStr = row[2]; const typeStr = row[3]; const costStr = row[4]; const statusStr = row[5] ? row[5].trim() : ''; if (!dateStr || !costStr) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = dateStr.split('/'); if (day && month && year) isoDate = `${year} -${month} -${day} T00:00:00`; } catch (e) { } let amount = 0; const cleanCost = costStr.replace(/[^\d,.-]/g, '').trim(); amount = parseFloat(cleanCost.includes(',') ? cleanCost.replace(/\./g, '').replace(',', '.') : cleanCost); if (isNaN(amount)) amount = 0; loadedCosts.push({ id: `cost_${idx} `, month: row[0], week: row[1], date: isoDate, category: typeStr, amount: amount, status: statusStr.toLowerCase() === 'pago' ? 'Pago' : '' }); }); setCosts(loadedCosts); if (!silent) alert("Custos atualizados."); } catch (e) { console.error(e); }
+        try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'Custo Mensal!A:F'); if (!rows || rows.length < 2) return; const loadedCosts: CostItem[] = []; rows.slice(1).forEach((row: string[], idx: number) => { const dateStr = row[2]; const typeStr = row[3]; const costStr = row[4]; const statusStr = row[5] ? row[5].trim() : ''; if (!dateStr || !costStr) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = dateStr.split('/'); if (day && month && year) isoDate = `${year} -${month} -${day} T00:00:00`; } catch (e) { } let amount = 0; const cleanCost = costStr.replace(/[^\d,.-]/g, '').trim(); amount = parseFloat(cleanCost.includes(',') ? cleanCost.replace(/\./g, '').replace(',', '.') : cleanCost); if (isNaN(amount)) amount = 0; loadedCosts.push({ id: `cost_${idx} `, month: row[0], week: row[1], date: isoDate, category: typeStr, amount: amount, status: statusStr.toLowerCase() === 'pago' ? 'Pago' : '' }); }); setCosts(loadedCosts); if (!silent) console.log("Custos atualizados."); } catch (e) { console.error(e); }
     };
 
     const handleSyncClients = async (token: string, silent = false) => {
@@ -1662,7 +1699,15 @@ const App: React.FC = () => {
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
             </Layout>
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                settings={settings}
+                onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }}
+                sheetId={SHEET_ID}
+                onChangeSheetId={handleSaveSheetId}
+                onSync={handleManualSync}
+            />
         </HashRouter>
     );
 }
