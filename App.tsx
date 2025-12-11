@@ -1023,8 +1023,8 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
             </div>
 
             {/* Service Details Modal */}
-            {viewService && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm animate-fade-in" onClick={() => setViewService(null)}>
+            {viewService && createPortal(
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setViewService(null)}>
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
                         <div className="p-6">
                             <h2 className="text-2xl font-bold text-gray-900 mb-1">{viewService.name}</h2>
@@ -1063,7 +1063,8 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {contextMenu && (
@@ -1073,8 +1074,8 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
                 </div>
             )}
 
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+            {isModalOpen && createPortal(
+                <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
                     <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 animate-scale-up relative overflow-hidden ring-1 ring-white/50">
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-400 to-purple-500" />
                         <h3 className="text-2xl font-bold text-gray-900 tracking-tight">Gerenciar Serviço</h3>
@@ -1090,7 +1091,8 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
                             <button onClick={handleSave} className="px-8 py-3 bg-brand-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-brand-200 hover:bg-brand-700 hover:scale-105 active:scale-95 transition-all">Salvar</button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
