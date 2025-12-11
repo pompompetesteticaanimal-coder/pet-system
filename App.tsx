@@ -512,10 +512,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
                         <h3 className="p-5 text-sm font-bold text-gray-500 dark:text-gray-400 border-b border-gray-100/50 dark:border-gray-700/50 flex items-center gap-2 uppercase tracking-wider"><FileText size={16} /> Detalhamento do Dia</h3>
                         <div className="p-4 space-y-3">
                             {dailyApps.length === 0 ? (
-                                <div className="p-8 text-center text-gray-400 font-medium flex flex-col items-center">
-                                    <img src="/pets/sleeping_pet.png" className="w-32 h-32 mb-4 opacity-50 grayscale animate-pulse-soft" alt="Sleeping" />
-                                    <p>Nenhum agendamento neste dia.</p>
-                                </div>
+                                <div className="p-8 text-center text-gray-400 font-medium">Nenhum agendamento neste dia.</div>
                             ) : (
                                 dailyApps.sort((a, b) => a.date.localeCompare(b.date)).map((app, index) => {
                                     const client = clients.find(c => c.id === app.clientId);
@@ -912,12 +909,6 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
 
             <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1" onScroll={handleScroll}>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {visibleClients.length === 0 && (
-                        <div className="col-span-full py-12 flex flex-col items-center justify-center text-center opacity-60">
-                            <img src="/pets/sleeping_pet.png" className="w-32 h-32 mb-4 grayscale opacity-50 animate-pulse-soft" alt="Zzz" />
-                            <p className="text-gray-400 font-bold">Nenhum cliente encontrado.</p>
-                        </div>
-                    )}
                     {visibleClients.map((client, index) => (
                         <div key={client.id} style={{ animationDelay: `${index * 0.05}s` }} className="animate-slide-up bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-white/50 hover:shadow-glass hover:-translate-y-1 transition-all group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-8 bg-brand-50/50 rounded-bl-[40px] -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform duration-500" />
@@ -1323,14 +1314,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         return (
             <div key={dateStr} className={`relative h-[1440px] bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex mx-1 ${animationClass}`}>
                 <div className="w-14 bg-gray-50/50 backdrop-blur-sm border-r border-gray-100 flex-shrink-0 sticky left-0 z-10 flex flex-col"> {Array.from({ length: 12 }, (_, i) => i + 8).map(h => (<div key={h} className="flex-1 border-b border-gray-100 text-[10px] text-gray-400 font-bold p-2 text-right relative"> <span className="-top-2.5 relative">{h}:00</span> </div>))} </div>
-                <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,rgba(243,244,246,0.6)_120px)] overflow-x-auto">
-                    {dayApps.length === 0 && (
-                        <div className="absolute inset-x-0 top-32 flex flex-col items-center justify-center pointer-events-none opacity-50 z-0">
-                            <img src="/pets/sleeping_pet.png" className="w-48 h-48 mb-4 grayscale opacity-60 animate-pulse-soft" alt="Empty" />
-                            <p className="text-gray-400 font-bold bg-white/50 px-4 py-2 rounded-full backdrop-blur-sm">Nenhum agendamento para este dia</p>
-                        </div>
-                    )}
-                    {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)}
+                <div className="flex-1 relative bg-[repeating-linear-gradient(0deg,transparent,transparent_119px,rgba(243,244,246,0.6)_120px)] overflow-x-auto"> {Array.from({ length: 60 }, (_, i) => i).map(i => <div key={i} className="absolute w-full border-t border-gray-50" style={{ top: i * 20 }} />)}
                     {/* Overflow Indicators Layer */}
                     <div className="absolute top-0 right-0 h-full w-[60px] pointer-events-none z-50 flex flex-col items-end">
                         {layoutItems.filter((item: any) => item.index === 0 && item.totalCount > 2).map((item: any) => {
@@ -2171,15 +2155,6 @@ const App: React.FC = () => {
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
-
-            {/* Global Pet Mascot Overlay */}
-            <div className="fixed top-0 right-4 z-[999] pointer-events-none select-none flex flex-col items-end opacity-90 hover:opacity-100 transition-opacity">
-                <img
-                    src="/pets/maltese.png"
-                    alt="Pet Mascot"
-                    className="w-24 h-auto object-contain transform translate-y-2 animate-float drop-shadow-xl filter brightness-105"
-                />
-            </div>
         </HashRouter>
     );
 }
