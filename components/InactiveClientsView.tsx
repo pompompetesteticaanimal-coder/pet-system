@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Client, Appointment, Service } from '../types';
-import { Phone, CheckCircle, MessageCircle, Calendar as CalendarIcon, ArrowLeft, MapPin, Dog, Clock, AlertCircle } from 'lucide-react';
+import { Phone, CheckCircle, MessageCircle, Calendar as CalendarIcon, ArrowLeft, MapPin, Dog, Clock, AlertCircle, Search, Filter, ArrowUpDown, ArrowDownUp } from 'lucide-react';
 
 interface InactiveClientsViewProps {
     clients: Client[];
@@ -12,11 +12,16 @@ interface InactiveClientsViewProps {
 }
 
 export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ clients, appointments, services, contactLogs, onMarkContacted, onBack }) => {
+    // State for Search, Filter, Sort
+    const [searchTerm, setSearchTerm] = useState('');
+    const [minDays, setMinDays] = useState(15);
+    const [sortAsc, setSortAsc] = useState(true);
+
     // 1. Calculate filtering logic
     const inactiveClients = useMemo(() => {
         const now = new Date();
-        const fifteenDaysAgo = new Date();
-        fifteenDaysAgo.setDate(now.getDate() - 15);
+        const cutoffDate = new Date();
+        cutoffDate.setDate(now.getDate() - minDays);
 
         return clients.map(client => {
             // Find last completed/scheduled appointment (ignore canceled)
@@ -41,8 +46,8 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
 
             const effectiveLastDate = lastAppDate > lastContactDate ? lastAppDate : lastContactDate;
 
-            // Filter if activity is recent
-            if (effectiveLastDate > fifteenDaysAgo) return null;
+            // Filter if activity is recent (based on dynamic minDays)
+            if (effectiveLastDate > cutoffDate) return null;
 
             const diffTime = Math.abs(now.getTime() - effectiveLastDate.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -53,9 +58,36 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
                 daysInactive: diffDays,
                 lastActivityType: effectiveLastDate === lastAppDate ? 'visit' : 'contact'
             };
-        }).filter((item): item is NonNullable<typeof item> => item !== null)
-            .sort((a, b) => b.daysInactive - a.daysInactive); // Most inactive first
-    }, [clients, appointments, contactLogs]);
+        }).filter((item): item is NonNullable<typeof item> => item !== null);
+    }, [clients, appointments, contactLogs, minDays]);
+
+    // 2. Search and Sort
+    const processedList = useMemo(() => {
+        let result = [...inactiveClients];
+
+        // Search
+        if (searchTerm.trim()) {
+            const lowerTerm = searchTerm.toLowerCase();
+            result = result.filter(item => {
+                const pet = item.client.pets.find(p => p.id === item.lastApp.petId);
+                return (
+                    item.client.name.toLowerCase().includes(lowerTerm) ||
+                    (pet?.name || '').toLowerCase().includes(lowerTerm)
+                );
+            });
+        }
+
+        // Sort
+        result.sort((a, b) => {
+            if (sortAsc) {
+                return a.daysInactive - b.daysInactive; // Crescent: 16, 17, 18...
+            } else {
+                return b.daysInactive - a.daysInactive; // Decrescent: 100, 99...
+            }
+        });
+
+        return result;
+    }, [inactiveClients, searchTerm, sortAsc]);
 
     const getWhatsAppLink = (client: Client, petName: string, days: number) => {
         const phone = client.phone.replace(/\D/g, '');
@@ -65,29 +97,70 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
 
     return (
         <div className="space-y-6 animate-fade-in pb-20 bg-gray-50/50 min-h-full">
-            {/* Header */}
-            <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-100 shadow-sm">
-                <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
-                    <ArrowLeft size={24} className="text-gray-600" />
-                </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Painel de Inativos</h1>
-                    <p className="text-xs text-gray-500 font-medium">Clientes ausentes há mais de 15 dias</p>
+            {/* Header + Controls */}
+            <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm flex flex-col gap-4 p-4">
+                <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors active:scale-95">
+                        <ArrowLeft size={24} className="text-gray-600" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Painel de Inativos</h1>
+                        <p className="text-xs text-gray-500 font-medium">Gerenciamento de retorno de clientes</p>
+                    </div>
+                </div>
+
+                {/* Controls Row */}
+                <div className="flex flex-col md:flex-row gap-2">
+                    {/* Search */}
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <input
+                            type="text"
+                            placeholder="Buscar cliente ou pet..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 bg-gray-100 border-transparent focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-xl transition-all outline-none text-sm font-medium"
+                        />
+                    </div>
+
+                    <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
+                        {/* Days Filter */}
+                        <div className="flex bg-gray-100 p-1 rounded-xl shrink-0">
+                            {[15, 30, 45, 60].map(days => (
+                                <button
+                                    key={days}
+                                    onClick={() => setMinDays(days)}
+                                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${minDays === days ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    {days}+ Dias
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Sort Toggle */}
+                        <button
+                            onClick={() => setSortAsc(!sortAsc)}
+                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs flex items-center gap-2 transition-colors shrink-0"
+                        >
+                            {sortAsc ? <ArrowDownUp size={16} /> : <ArrowUpDown size={16} />}
+                            {sortAsc ? 'Crescente' : 'Decrescente'}
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* List */}
             <div className="px-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {inactiveClients.length === 0 ? (
+                {processedList.length === 0 ? (
                     <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-400">
                         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                            <CheckCircle size={40} className="text-gray-300" />
+                            <Search size={40} className="text-gray-300" />
                         </div>
-                        <p className="font-bold text-lg">Tudo em dia!</p>
-                        <p className="text-sm">Nenhum cliente inativo no momento.</p>
+                        <p className="font-bold text-lg">Nenhum resultado</p>
+                        <p className="text-sm">Tente ajustar os filtros ou busca.</p>
                     </div>
                 ) : (
-                    inactiveClients.map(({ client, lastApp, daysInactive }, index) => {
+                    processedList.map(({ client, lastApp, daysInactive }, index) => {
                         const pet = client.pets.find(p => p.id === lastApp.petId) || client.pets[0];
                         const dateObj = new Date(lastApp.date);
 
@@ -95,11 +168,11 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
                             <div
                                 key={client.id}
                                 className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-all group animate-slide-up relative overflow-hidden"
-                                style={{ animationDelay: `${index * 0.05}s` }}
+                                style={{ animationDelay: `${Math.min(index * 0.05, 1)}s` }}
                             >
                                 {/* Inactivity Badge */}
-                                <div className="absolute top-0 right-0 bg-rose-50 px-4 py-2 rounded-bl-2xl border-l border-b border-rose-100">
-                                    <span className="text-xs font-black text-rose-600 uppercase flex items-center gap-1">
+                                <div className={`absolute top-0 right-0 px-4 py-2 rounded-bl-2xl border-l border-b ${daysInactive >= 60 ? 'bg-red-50 border-red-100' : daysInactive >= 30 ? 'bg-orange-50 border-orange-100' : 'bg-rose-50 border-rose-100'}`}>
+                                    <span className={`text-xs font-black uppercase flex items-center gap-1 ${daysInactive >= 60 ? 'text-red-600' : daysInactive >= 30 ? 'text-orange-600' : 'text-rose-600'}`}>
                                         <Clock size={12} /> {daysInactive} dias off
                                     </span>
                                 </div>
