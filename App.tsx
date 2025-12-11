@@ -1724,7 +1724,38 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     const pets = selectedClientData?.pets || [];
     const selectedPetData = selectedClient?.pets.find(p => p.id === selectedPetIds[0]);
 
-    const getApplicableServices = (category: 'principal' | 'adicional') => { if (!selectedPetData) return []; return services.filter(s => { const matchesCategory = s.category === category; const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase())); const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase())); return matchesCategory && matchesSize && matchesCoat; }); };
+    const getApplicableServices = (category: 'principal' | 'adicional') => {
+        if (!selectedPetData) return [];
+
+        const isPetCat = (selectedPetData.breed || '').toLowerCase().includes('gato');
+
+        return services.filter(s => {
+            const matchesCategory = s.category === category;
+
+            // Size & Coat Logic
+            const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase()));
+            const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase()));
+
+            // Breed Logic (Gato)
+            const isServiceForCat = s.name.toLowerCase().includes('gato') || s.name.toLowerCase().includes('felino');
+
+            // Rule 1: Cat Services are ONLY for Cats
+            if (isServiceForCat && !isPetCat) return false;
+
+            // Rule 2: If Pet is Cat, prioritize Cat Services? 
+            // We don't strictly hide "generic" services, but if a service implies Dog (e.g. standard sizes often imply dog if 'Gato' exists separately), 
+            // we let the user decide. Ideally, Cat services have Size='Todos', matching Cats.
+            // If the user meant "If it's a Cat, ONLY show Cat services", that would hide "Hidratação".
+            // So we stick to "Don't show Cat services to Dogs".
+
+            // Rule 3: The User said "OR breed". 
+            // If service explicitly names the breed/species (Gato), we might be lenient on Size/Coat if the service implies "All Cats"?
+            // E.g. "Banho Gato" (TargetSize='Todos') -> Matches.
+            // "Banho Gato" (TargetSize=undefined) -> Matches.
+
+            return matchesCategory && matchesSize && matchesCoat;
+        });
+    };
     const navigate = (direction: 'prev' | 'next') => {
         setSlideDirection(direction === 'next' ? 'right' : 'left');
         const newDate = new Date(currentDate);
