@@ -42,8 +42,8 @@ const formatDateWithWeek = (dateStr: string) => {
 const calculateTotal = (app: Appointment, services: Service[]) => {
     if (app.status === 'cancelado' || app.status === 'nao_veio') return 0;
 
-    // Use actual paid amount if available and payment method is recorded
-    if (app.paymentMethod && app.paymentMethod.trim() !== '' && app.paidAmount !== undefined) {
+    // Use actual paid amount if available (even without method, to catch imports/manual edits)
+    if (app.paidAmount !== undefined && app.paidAmount > 0) {
         return app.paidAmount;
     }
 
