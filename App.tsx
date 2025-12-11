@@ -135,15 +135,15 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void; settings: 
         <div className="fixed inset-0 bg-black/40 z-[80] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
             <div className="bg-white/90 backdrop-blur-xl rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-white/40 ring-1 ring-white/50 animate-scale-up">
                 <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white/50">
-                    <h3 className="font-bold text-xl text-gray-900 tracking-tight">Aparência</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><X size={24} className="text-gray-400 hover:text-gray-600" /></button>
+                    <h3 className="font-bold text-xl text-gray-900 tracking-tight flex items-center gap-2"><Sparkles size={18} className="text-yellow-500" /> Aparência</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors btn-spring"><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
                 </div>
                 <div className="p-6 overflow-y-auto space-y-6 flex-1">
                     <div className="grid grid-cols-1 gap-3">
                         {themes.map(t => (
-                            <button key={t.value} onClick={() => setLocalSettings({ ...localSettings, theme: t.value })} className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${localSettings.theme === t.value ? 'border-brand-500 bg-brand-50 shadow-sm ring-1 ring-brand-200' : 'border-gray-200 hover:bg-gray-50'}`}>
+                            <button key={t.value} onClick={() => setLocalSettings({ ...localSettings, theme: t.value })} className={`p-4 rounded-2xl border flex items-center justify-between transition-all btn-spring ${localSettings.theme === t.value ? 'border-brand-500 bg-brand-50 shadow-sm ring-1 ring-brand-200' : 'border-gray-200 hover:bg-gray-50'}`}>
                                 <div className="flex items-center gap-4"><div className="w-10 h-10 rounded-full shadow-sm ring-2 ring-white" style={{ backgroundColor: t.color }}></div><span className="font-bold text-gray-800">{t.name}</span></div>
-                                {localSettings.theme === t.value && <div className="bg-brand-600 text-white p-1 rounded-full"><Check size={16} /></div>}
+                                {localSettings.theme === t.value && <div className="bg-brand-600 text-white p-1 rounded-full animate-pop"><Check size={16} /></div>}
                             </button>
                         ))}
                         <div className="mt-4 p-4 bg-gray-50 rounded-2xl flex items-center justify-between border border-gray-100">
@@ -164,8 +164,8 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void; settings: 
                     </div>
                 </div>
                 <div className="p-5 border-t border-gray-100/50 bg-gray-50/50 flex justify-end gap-3 glass">
-                    <button onClick={onClose} className="px-5 py-3 text-gray-600 hover:bg-gray-200/50 rounded-xl font-bold text-sm transition-colors">Cancelar</button>
-                    <button onClick={() => { onSave(localSettings); onClose(); }} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-bold text-sm shadow-xl shadow-brand-200 hover:scale-105 active:scale-95 transition-all">Salvar Alterações</button>
+                    <button onClick={onClose} className="px-5 py-3 text-gray-600 hover:bg-gray-200/50 rounded-xl font-bold text-sm transition-colors btn-spring">Cancelar</button>
+                    <button onClick={() => { onSave(localSettings); onClose(); }} className="px-6 py-3 bg-brand-600 text-white rounded-xl font-bold text-sm shadow-xl shadow-brand-200 btn-spring">Salvar Alterações</button>
                 </div>
             </div>
         </div>
@@ -457,10 +457,11 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
 
     interface StatCardProps { title: string; value: string | number; icon: any; colorClass: string; growth?: number; subValue?: string; }
     const StatCard = ({ title, value, icon: Icon, colorClass, growth, subValue }: StatCardProps) => (
-        <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100/80 hover:shadow-md hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group h-full">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-2.5 rounded-2xl ${colorClass} bg-opacity-10 text-${colorClass.split('-')[1]}-600`}>
-                    <Icon size={20} />
+        <div className="bg-white p-5 rounded-[2rem] shadow-soft border border-gray-100/50 btn-spring hover:shadow-lg hover:-translate-y-2 flex flex-col justify-between group h-full relative overflow-hidden">
+            <div className={`absolute -right-6 -top-6 w-24 h-24 bg-${colorClass.split('-')[1]}-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700`} />
+            <div className="flex justify-between items-start mb-4 relative z-10">
+                <div className={`p-3 rounded-2xl ${colorClass} bg-opacity-10 text-${colorClass.split('-')[1]}-600 group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon size={22} className="animate-pulse-slow" />
                 </div>
                 {growth !== undefined && (
                     <div className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 ${growth >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
@@ -477,7 +478,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
         </div>
     );
 
-    const TabButton = ({ id, label, icon: Icon }: any) => (<button onClick={() => setActiveTab(id)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === id ? 'bg-white text-brand-600 shadow-md transform scale-100' : 'text-gray-400 hover:bg-white/50 hover:text-gray-600'}`}><Icon size={16} /><span className="hidden sm:inline">{label}</span></button>);
+    const TabButton = ({ id, label, icon: Icon }: any) => (<button onClick={() => setActiveTab(id)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 btn-spring ${activeTab === id ? 'bg-white text-brand-600 shadow-md transform scale-100' : 'text-gray-400 hover:bg-white/50 hover:text-gray-600'}`}><Icon size={16} /><span className="hidden sm:inline">{label}</span></button>);
 
     const animationClass = slideDirection === 'right' ? 'animate-slide-right' : slideDirection === 'left' ? 'animate-slide-left' : '';
 
@@ -1005,12 +1006,22 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
 
             <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-[2rem] shadow-sm border border-white/60 flex flex-col justify-center items-center cursor-pointer btn-spring hover:shadow-xl hover:-translate-y-1 group relative overflow-hidden">
+                        <div className="w-12 h-12 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 mb-2 group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                            <Plus size={24} />
+                        </div>
+                        <span className="font-bold text-gray-700 group-hover:text-brand-600 transition-colors">Novo Serviço</span>
+                    </button>
+
                     {services.map((service, index) => (
-                        <div key={service.id} onClick={() => setViewService(service)} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-3xl shadow-sm border border-white/50 flex flex-col justify-between cursor-pointer hover:shadow-glass hover:scale-[1.02] transition-all duration-300 select-none group relative">
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500" title="Editar Rápido"><Edit2 size={12} /></div>
+                        <div key={service.id} onClick={() => setViewService(service)} style={{ animationDelay: `${index * 0.05}s` }} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, service }); }} className="animate-slide-up bg-white/80 backdrop-blur p-5 rounded-[2rem] shadow-sm border border-white/60 flex flex-col justify-between cursor-pointer btn-spring hover:shadow-xl hover:-translate-y-1 group relative overflow-hidden">
+                            <div className="absolute -right-4 -bottom-4 opacity-5 rotate-12 group-hover:rotate-0 group-hover:scale-110 transition-all duration-500 text-brand-500">
+                                <PawPrint size={80} />
                             </div>
-                            <div>
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 hover:text-brand-500 btn-spring" title="Editar Rápido"><Edit2 size={12} /></div>
+                            </div>
+                            <div className="relative z-10">
                                 <div className="flex justify-between items-start mb-2">
                                     <h3 className="font-bold text-gray-800 text-base truncate pr-6 tracking-tight">{service.name}</h3>
                                 </div>
@@ -1288,7 +1299,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         const avgRating = starsValues.length > 0 ? starsValues.reduce((a, b) => a + b, 0) / starsValues.length : 0;
 
         return (
-            <div style={style} className={`animate-pop absolute rounded-lg p-1.5 border shadow-sm ${colorClass} text-xs cursor-pointer hover:shadow-md hover:scale-[1.05] hover:z-[100] transition-all overflow-hidden flex flex-col justify-start leading-none group min-w-[200px]`} onClick={(e) => { e.stopPropagation(); onClick(app); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContext(e, app.id); }}>
+            <div style={style} className={`animate-pop absolute rounded-lg p-1.5 border shadow-sm ${colorClass} text-xs cursor-pointer btn-spring hover:shadow-md hover:scale-[1.05] hover:z-[100] transition-all overflow-hidden flex flex-col justify-start leading-none group min-w-[200px]`} onClick={(e) => { e.stopPropagation(); onClick(app); }} onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContext(e, app.id); }}>
                 {/* Header: Client & Pet */}
                 <div className="flex justify-between items-center mb-1 w-full">
                     <span className="font-bold truncate text-[11px] flex-1">{client?.name.split(' ')[0]} - {pet?.name}</span>
@@ -1374,9 +1385,9 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
             <div className="flex flex-col md:flex-row justify-between items-center gap-2 flex-shrink-0 bg-white p-2 rounded-xl shadow-sm border border-gray-200">
                 <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
                     <div className="flex bg-gray-100 p-1 rounded-lg flex-shrink-0">
-                        <button onClick={() => setViewMode('day')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
-                        <button onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
-                        <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
+                        <button onClick={() => setViewMode('day')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all btn-spring ${viewMode === 'day' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Dia</button>
+                        <button onClick={() => setViewMode('week')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all btn-spring ${viewMode === 'week' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Semana</button>
+                        <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all btn-spring ${viewMode === 'month' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}>Mês</button>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                         <button onClick={() => navigate('prev')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronLeft size={18} /></button>
