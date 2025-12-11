@@ -980,6 +980,8 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
     const [formData, setFormData] = useState({ name: '', price: '', category: 'principal', size: 'Todos', coat: 'Todos' });
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, service: Service } | null>(null);
     const [viewService, setViewService] = useState<Service | null>(null);
+    const [newService, setNewService] = useState<Partial<Service>>({});
+    const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
 
     const resetForm = () => { setFormData({ name: '', price: '', category: 'principal', size: 'Todos', coat: 'Todos' }); setEditingService(null); setIsModalOpen(false); };
     const handleEditStart = (s: Service) => { setEditingService(s); setFormData({ name: s.name, price: s.price.toString(), category: s.category, size: s.targetSize || 'Todos', coat: s.targetCoat || 'Todos' }); setIsModalOpen(true); setContextMenu(null); };
@@ -1049,7 +1051,8 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
                             <div className="flex gap-3">
                                 <button onClick={() => setViewService(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl active:scale-95 transition-transform">Fechar</button>
                                 <button onClick={() => {
-                                    handleEditStart(viewService);
+                                    setNewService({ ...viewService });
+                                    setIsNewServiceModalOpen(true);
                                     setViewService(null);
                                 }} className="flex-1 py-3 bg-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-200 active:scale-95 transition-transform flex items-center justify-center gap-2">
                                     <Edit2 size={16} /> Editar
@@ -1068,15 +1071,15 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
             )}
 
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={resetForm}>
-                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 relative overflow-hidden ring-1 ring-white/50" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 animate-scale-up relative overflow-hidden ring-1 ring-white/50">
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-400 to-purple-500" />
-                        <h3 className="text-2xl font-bold text-gray-900 tracking-tight">{editingService ? 'Editar Serviço' : 'Novo Serviço'}</h3>
+                        <h3 className="text-2xl font-bold text-gray-900 tracking-tight">Gerenciar Serviço</h3>
                         <div className="space-y-4">
-                            <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Nome do Serviço</label><input placeholder="Ex: Banho Premium" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all placeholder:font-normal" /></div>
+                            <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Nome do Serviço</label><input placeholder="Ex: Banho Premium" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all placeholder:font-normal" /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Preço (R$)</label><input placeholder="0,00" value={formData.price || ''} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all" /></div>
-                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Categoria</label><select value={formData.category || 'principal'} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 ring-brand-200 outline-none transition-all appearance-none"><option value="principal">Principal</option><option value="adicional">Adicional</option></select></div>
+                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Preço (R$)</label><input placeholder="0,00" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all" /></div>
+                                <div><label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Categoria</label><select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-gray-50 border-none p-4 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 ring-brand-200 outline-none transition-all appearance-none"><option value="principal">Principal</option><option value="adicional">Adicional</option></select></div>
                             </div>
                         </div>
                         <div className="flex gap-3 justify-end mt-4 pt-4 border-t border-gray-100">
@@ -1352,47 +1355,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
 
     const renderMonthView = () => {
         const year = currentDate.getFullYear(); const month = currentDate.getMonth(); const firstDay = new Date(year, month, 1); const startDay = firstDay.getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const slots = []; for (let i = 0; i < startDay; i++) slots.push(null); for (let i = 1; i <= daysInMonth; i++) slots.push(new Date(year, month, i));
-        return (
-            <div className="h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col mx-1">
-                <div className="grid grid-cols-7 bg-gray-50/80 backdrop-blur-sm border-b border-gray-200 flex-shrink-0">
-                    {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => <div key={d} className="py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{d}</div>)}
-                </div>
-                {/* Fixed 6 rows for maximum month spread, ensuring stable cell height */}
-                <div className="flex-1 grid grid-cols-7 grid-rows-6 min-h-0 overflow-hidden">
-                    {slots.map((date, idx) => {
-                        // Fill remaining slots if month has fewer than 42 days (6 weeks * 7 days)
-                        // Actually standard month view is usually 35 or 42 slots.
-                        // Our slots array logic creates empty slots at start, but might not fill end.
-                        // Grid auto-rows-fr might be better if we ensure the container is fixed height.
-                        // But user asked for fixed height cells. "grid-rows-6" enforces 1/6th height per row.
-
-                        if (!date) return <div key={`empty-${idx}`} className="bg-gray-50/30 border-b border-r border-gray-100" />;
-                        const dateStr = date.toISOString().split('T')[0];
-                        const isToday = dateStr === new Date().toISOString().split('T')[0];
-                        const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado').sort((a, b) => a.date.localeCompare(b.date));
-                        const hasManyApps = dayApps.length > 3;
-
-                        return (
-                            <div key={idx} className={`border-b border-r border-gray-100 p-1 flex flex-col transition-colors cursor-pointer hover:bg-brand-50/30 ${isToday ? 'bg-orange-50/30' : ''} h-full overflow-hidden`} onClick={() => { setDate(dateStr); setViewMode('day'); }}>
-                                <span className={`text-[10px] font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 transition-all ${isToday ? 'bg-brand-600 text-white shadow-md scale-110' : 'text-gray-500'}`}>{date.getDate()}</span>
-                                <div className={`flex-1 space-y-1 min-h-0 ${hasManyApps ? 'overflow-y-auto no-scrollbar overscroll-contain' : 'overflow-hidden'}`} onClick={(e) => hasManyApps && e.stopPropagation()} onWheel={(e) => hasManyApps && e.stopPropagation()} onTouchMove={(e) => hasManyApps && e.stopPropagation()}>
-                                    {dayApps.map(app => (
-                                        <div key={app.id} className="text-[9px] bg-white border border-gray-200 text-gray-700 rounded-md px-1.5 py-0.5 truncate font-medium shadow-sm">
-                                            {clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name}
-                                        </div>
-                                    ))}
-                                    {dayApps.length > 3 && !hasManyApps && <div className="text-[8px] text-gray-400 pl-1 font-medium">+ {dayApps.length - 3} mais</div>}
-                                </div>
-                            </div>
-                        )
-                    })}
-                    {/* Fill remaining grid cells to keep layout stable if slots < 42 */}
-                    {Array.from({ length: 42 - slots.length }).map((_, i) => (
-                        <div key={`end-empty-${i}`} className="bg-gray-50/30 border-b border-r border-gray-100" />
-                    ))}
-                </div>
-            </div>
-        )
+        return (<div className="h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col mx-1"> <div className="grid grid-cols-7 bg-gray-50/80 backdrop-blur-sm border-b border-gray-200"> {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(d => <div key={d} className="py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{d}</div>)} </div> <div className="flex-1 grid grid-cols-7 auto-rows-fr"> {slots.map((date, idx) => { if (!date) return <div key={`empty-${idx}`} className="bg-gray-50/30 border-b border-r border-gray-100" />; const dateStr = date.toISOString().split('T')[0]; const isToday = dateStr === new Date().toISOString().split('T')[0]; const dayApps = appointments.filter(a => a.date.startsWith(dateStr) && a.status !== 'cancelado').sort((a, b) => a.date.localeCompare(b.date)); return (<div key={idx} className={`border-b border-r border-gray-100 p-1 flex flex-col transition-colors cursor-pointer hover:bg-brand-50/30 ${isToday ? 'bg-orange-50/30' : ''}`} onClick={() => { setDate(dateStr); setViewMode('day'); }}> <span className={`text-[10px] font-bold mb-1 w-6 h-6 flex items-center justify-center rounded-full transition-all ${isToday ? 'bg-brand-600 text-white shadow-md scale-110' : 'text-gray-500'}`}>{date.getDate()}</span> <div className="flex-1 overflow-hidden space-y-1"> {dayApps.slice(0, 3).map(app => (<div key={app.id} className="text-[9px] bg-white border border-gray-200 text-gray-700 rounded-md px-1.5 py-0.5 truncate font-medium shadow-sm"> {clients.find(c => c.id === app.clientId)?.pets.find(p => p.id === app.petId)?.name} </div>))} {dayApps.length > 3 && <div className="text-[8px] text-gray-400 pl-1 font-medium">+ {dayApps.length - 3} mais</div>} </div> </div>) })} </div> </div>)
     };
 
     return (
