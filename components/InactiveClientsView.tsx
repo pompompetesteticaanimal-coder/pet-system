@@ -68,7 +68,7 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
         const phone = client.phone.replace(/\D/g, ''); // Remove non-digits
         const message = `Olá ${client.name.split(' ')[0]}, o ${client.lastPetName} está com saudades! Já faz ${client.daysAbsent} dias que não o vemos. Vamos agendar um banho? 🐶💙`;
         const url = `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`;
-        window.open(url, '_blank');
+        window.location.href = url;
     };
 
     const handleMarkContacted = async (client: typeof inactiveClients[0]) => {

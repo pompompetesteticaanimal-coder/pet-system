@@ -2111,29 +2111,87 @@ const App: React.FC = () => {
     const handleSyncAppointments = async (token: string, silent = false) => {
         // ... [Sync Appointments Logic same as before] ...
         if (!token || !SHEET_ID) return; try {
-            const rows = await googleService.getSheetValues(token, SHEET_ID, 'Agendamento!A:T'); if (!rows || rows.length < 5) { if (!silent) alert('Aba Agendamento vazia (Linhas 1-4 ignoradas).'); return; } const loadedApps: Appointment[] = []; const newTempClients: Client[] = []; const currentClients = db.getClients(); const existingClientIds = new Set(currentClients.map(c => c.id)); rows.forEach((row: string[], idx: number) => {
-                if (idx < 4) return; const petName = row[0]; const clientName = row[1]; const clientPhone = row[2] || ''; const clientAddr = row[3] || ''; const petBreed = row[4]; const datePart = row[11]; const timePart = row[12]; const serviceName = row[7]; const paidAmountStr = row[16]; const paymentMethod = row[17]; const googleEventId = row[19]; if (!clientName || !datePart) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = datePart.split('/'); if (day && month && year) isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`; } catch (e) { } const cleanPhone = clientPhone.replace(/\D/g, '') || `temp_${idx}`; let client = currentClients.find(c => c.id === cleanPhone) || currentClients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone); if (!client) { client = { id: cleanPhone, name: clientName, phone: clientPhone, address: clientAddr, pets: [] }; newTempClients.push(client); } let pet = client.pets.find(p => p.name.toLowerCase() === petName?.toLowerCase()); if (!pet && petName) { pet = { id: `${client.id}_p_${idx}`, name: petName, breed: petBreed || 'SRD', age: '', gender: '', size: row[5] || '', coat: row[6] || '', notes: row[13] || '' }; client.pets.push(pet); } const currentServices = db.getServices(); const service = currentServices.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || currentServices[0]; const addServiceIds: string[] = [];[row[8], row[9], row[10]].forEach(name => { if (name) { const foundSvc = currentServices.find(s => s.name.toLowerCase() === name.toLowerCase().trim()); if (foundSvc) addServiceIds.push(foundSvc.id); } }); let paidAmount = 0;
-                if (paidAmountStr) { paidAmount = parseFloat(paidAmountStr.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')); if (isNaN(paidAmount)) paidAmount = 0; }
+            const [scheduleRows, contactRows] = await Promise.all([
+                googleService.getSheetValues(token, SHEET_ID, 'Agendamento!A:T'),
+                googleService.getSheetValues(token, SHEET_ID, 'Painel de inativos!A:E').catch(() => []) // Optional tab
+            ]);
 
-                // Parse Rating logic
-                let rating = 0;
-                let ratingTags: string[] = [];
-                const notes = row[13] || '';
-                const ratingMatch = notes.match(/\[Avaliação: (\d+)\/5\]/);
-                if (ratingMatch && ratingMatch[1]) rating = parseInt(ratingMatch[1]);
-                const tagsMatch = notes.match(/\[Tags: (.*?)\]/);
-                if (tagsMatch && tagsMatch[1]) { ratingTags = tagsMatch[1].split(',').map(t => t.trim()); }
+            const loadedApps: Appointment[] = [];
+            const newTempClients: Client[] = [];
+            const currentClients = db.getClients();
+            const existingClientIds = new Set(currentClients.map(c => c.id));
 
-                let status: Appointment['status'] = 'agendado';
-                const statusRaw = row[15]?.toLowerCase().trim() || '';
-                if (statusRaw === 'não veio' || statusRaw === 'nao_veio') {
-                    status = 'nao_veio';
-                } else if (statusRaw === 'pago') {
-                    status = 'agendado'; // App considers paid via paidAmount, but let's keep status simple
-                }
+            // Process Standard Schedule
+            if (scheduleRows && scheduleRows.length >= 5) {
+                scheduleRows.forEach((row: string[], idx: number) => {
+                    if (idx < 4) return; const petName = row[0]; const clientName = row[1]; const clientPhone = row[2] || ''; const clientAddr = row[3] || ''; const petBreed = row[4]; const datePart = row[11]; const timePart = row[12]; const serviceName = row[7]; const paidAmountStr = row[16]; const paymentMethod = row[17]; const googleEventId = row[19]; if (!clientName || !datePart) return; let isoDate = new Date().toISOString(); try { const [day, month, year] = datePart.split('/'); if (day && month && year) isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`; } catch (e) { } const cleanPhone = clientPhone.replace(/\D/g, '') || `temp_${idx}`; let client = currentClients.find(c => c.id === cleanPhone) || currentClients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone); if (!client) { client = { id: cleanPhone, name: clientName, phone: clientPhone, address: clientAddr, pets: [] }; newTempClients.push(client); } let pet = client.pets.find(p => p.name.toLowerCase() === petName?.toLowerCase()); if (!pet && petName) { pet = { id: `${client.id}_p_${idx}`, name: petName, breed: petBreed || 'SRD', age: '', gender: '', size: row[5] || '', coat: row[6] || '', notes: row[13] || '' }; client.pets.push(pet); } const currentServices = db.getServices(); const service = currentServices.find(s => s.name.toLowerCase() === serviceName?.toLowerCase()) || currentServices[0]; const addServiceIds: string[] = [];[row[8], row[9], row[10]].forEach(name => { if (name) { const foundSvc = currentServices.find(s => s.name.toLowerCase() === name.toLowerCase().trim()); if (foundSvc) addServiceIds.push(foundSvc.id); } }); let paidAmount = 0;
+                    if (paidAmountStr) { paidAmount = parseFloat(paidAmountStr.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')); if (isNaN(paidAmount)) paidAmount = 0; }
 
-                if (client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: status, notes: row[13], durationTotal: parseInt(row[14] || '60'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: googleEventId, rating: rating > 0 ? rating : undefined, ratingTags: ratingTags.length > 0 ? ratingTags : undefined }); }
-            }); if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); } if (loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if (!silent) alert(`${loadedApps.length} agendamentos carregados!`); } else { if (!silent) alert('Nenhum agendamento encontrado.'); }
+                    // Parse Rating logic
+                    let rating = 0;
+                    let ratingTags: string[] = [];
+                    const notes = row[13] || '';
+                    const ratingMatch = notes.match(/\[Avaliação: (\d+)\/5\]/);
+                    if (ratingMatch && ratingMatch[1]) rating = parseInt(ratingMatch[1]);
+                    const tagsMatch = notes.match(/\[Tags: (.*?)\]/);
+                    if (tagsMatch && tagsMatch[1]) { ratingTags = tagsMatch[1].split(',').map(t => t.trim()); }
+
+                    let status: Appointment['status'] = 'agendado';
+                    const statusRaw = row[15]?.toLowerCase().trim() || '';
+                    if (statusRaw === 'não veio' || statusRaw === 'nao_veio') {
+                        status = 'nao_veio';
+                    } else if (statusRaw === 'pago') {
+                        status = 'agendado'; // App considers paid via paidAmount, but let's keep status simple
+                    } else if (statusRaw === 'cancelado') {
+                        status = 'cancelado';
+                    }
+
+                    if (client && pet) { loadedApps.push({ id: `sheet_${idx}`, clientId: client.id, petId: pet.id, serviceId: service?.id || 'unknown', additionalServiceIds: addServiceIds, date: isoDate, status: status, notes: row[13], durationTotal: parseInt(row[14] || '60'), paidAmount: paidAmount > 0 ? paidAmount : undefined, paymentMethod: paymentMethod as any, googleEventId: googleEventId, rating: rating > 0 ? rating : undefined, ratingTags: ratingTags.length > 0 ? ratingTags : undefined }); }
+                });
+            }
+
+            // Process Inactive Panel Contacts
+            if (contactRows && contactRows.length > 1) {
+                contactRows.slice(1).forEach((row: string[], idx: number) => {
+                    // Expected Format: [Data/Hora, Cliente, Telefone, Pet, Notas]
+                    const dateTime = row[0];
+                    const clientName = row[1];
+                    const clientPhone = row[2];
+                    const petName = row[3];
+                    const notes = row[4];
+
+                    if (!clientName || !dateTime) return;
+
+                    let isoDate = new Date().toISOString();
+                    try {
+                        const [datePart, timePart] = dateTime.split(' ');
+                        const [day, month, year] = datePart.split('/');
+                        if (day && month && year) isoDate = `${year}-${month}-${day}T${timePart || '00:00'}`;
+                    } catch (e) { }
+
+                    const cleanPhone = clientPhone?.replace(/\D/g, '') || `contact_${idx}`;
+                    let client = currentClients.find(c => c.id === cleanPhone) || currentClients.find(c => c.name.toLowerCase() === clientName.toLowerCase()) || newTempClients.find(c => c.id === cleanPhone);
+
+                    // We assume client exists for contacts, but handling gracefully
+                    if (client) {
+                        const pet = client.pets.find(p => p.name.toLowerCase() === petName?.toLowerCase()) || client.pets[0] || { id: 'unknown', name: petName || 'Pet' };
+
+                        loadedApps.push({
+                            id: `contact_sheet_${idx}`,
+                            clientId: client.id,
+                            petId: pet.id as any,
+                            serviceId: 'contact_svc',
+                            date: isoDate,
+                            status: 'contato',
+                            notes: notes,
+                            durationTotal: 15
+                        });
+                    }
+                });
+            }
+
+
+            if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); } if (loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if (!silent) alert(`${loadedApps.length} eventos carregados!`); } else { if (!silent) alert('Nenhum agendamento encontrado.'); }
         } catch (error) { console.error(error); if (!silent) alert('Erro ao sincronizar agendamentos.'); }
     };
     const handleAddAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
@@ -2147,14 +2205,30 @@ const App: React.FC = () => {
         if (accessToken && SHEET_ID) {
             try {
                 const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                const mainSvc = appServices[0];
-                const rowData = [
-                    pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
-                    appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Pendente', '', '', '', googleEventId
-                ];
-                await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
-                // Silent Sync to update IDs
+
+                if (app.status === 'contato') {
+                    // Save to 'Painel de inativos'
+                    // Headers assumed: Data/Hora, Cliente, Telefone, Pet, Notas
+                    const rowData = [
+                        `${dateStr} ${timeStr}`,
+                        client.name,
+                        client.phone,
+                        pet.name,
+                        app.notes || 'Contato registrado'
+                    ];
+                    await googleService.appendSheetValues(accessToken, SHEET_ID, 'Painel de inativos!A:E', rowData);
+                } else {
+                    // Save to Standard 'Agendamento'
+                    const mainSvc = appServices[0];
+                    const rowData = [
+                        pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
+                        appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
+                        dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Pendente', '', '', '', googleEventId
+                    ];
+                    await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
+                }
+
+                // Silent Sync to update
                 handleSyncAppointments(accessToken, true);
             } catch (e) { console.error(e); alert("Salvo no app, mas erro na planilha."); }
         }
