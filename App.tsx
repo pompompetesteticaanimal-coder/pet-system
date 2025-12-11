@@ -1223,7 +1223,7 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
     );
 };
 
-const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onAdd: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onUpdateStatus: (id: string, status: Appointment['status']) => void; onDelete: (id: string) => void; googleUser: GoogleUser | null; }> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete }) => {
+const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onAdd: (app: Appointment | Appointment[], client: Client, pet: Pet, services: Service[], duration: number) => void; onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onUpdateStatus: (id: string, status: Appointment['status']) => void; onDelete: (id: string) => void; googleUser: GoogleUser | null; }> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete }) => {
     const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1306,7 +1306,42 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                 newApp.paymentMethod = original?.paymentMethod;
                 onEdit(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
             } else {
-                onAdd(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
+                // Check if it's a Package Service to automate recurrence
+                const serviceNameLower = mainSvc.name.toLowerCase();
+                const isPackage = serviceNameLower.includes('pacote');
+                const appsToCreate: Appointment[] = [newApp];
+
+                if (isPackage) {
+                    let iterations = 0;
+                    let intervalDays = 0;
+
+                    if (serviceNameLower.includes('mensal')) {
+                        iterations = 3; // +3 appointments = 4 total
+                        intervalDays = 7;
+                    } else if (serviceNameLower.includes('quinzenal')) {
+                        iterations = 1; // +1 appointment = 2 total
+                        intervalDays = 14;
+                    }
+
+                    if (iterations > 0) {
+                        const baseDate = new Date(newApp.date);
+                        for (let i = 1; i <= iterations; i++) {
+                            const nextDate = new Date(baseDate);
+                            nextDate.setDate(baseDate.getDate() + (i * intervalDays));
+
+                            const isoDate = nextDate.toISOString().split('T')[0] + 'T' + time + ':00';
+
+                            appsToCreate.push({
+                                ...newApp,
+                                id: `local_${Date.now()}_recur_${i}`,
+                                date: isoDate,
+                                googleEventId: undefined // New event
+                            });
+                        }
+                    }
+                }
+
+                onAdd(appsToCreate, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
             }
             resetForm();
         }
@@ -2210,27 +2245,46 @@ const App: React.FC = () => {
             }); if (newTempClients.length > 0) { const updatedClients = [...currentClients, ...newTempClients.filter(nc => !existingClientIds.has(nc.id))]; setClients(updatedClients); db.saveClients(updatedClients); } if (loadedApps.length > 0) { setAppointments(loadedApps); db.saveAppointments(loadedApps); if (!silent) alert(`${loadedApps.length} agendamentos carregados!`); } else { if (!silent) alert('Nenhum agendamento encontrado.'); }
         } catch (error) { console.error(error); if (!silent) alert('Erro ao sincronizar agendamentos.'); }
     };
-    const handleAddAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
-        // ... [Add Appointment Logic same as before] ...
-        let googleEventId = ''; const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
-        if (accessToken) { const description = appServices.map(s => s.name).join(' + '); const googleResponse = await googleService.createEvent(accessToken, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration }); if (googleResponse) googleEventId = googleResponse.id; }
-        const newApp = { ...app, googleEventId, durationTotal: totalDuration };
-        const updatedApps = [...appointments, newApp];
+    const handleAddAppointment = async (appOrApps: Appointment | Appointment[], client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
+        const appsToAdd = Array.isArray(appOrApps) ? appOrApps : [appOrApps];
+        const newAppsWithEvents: Appointment[] = [];
+
+        // 1. Process Google Calendar Creation for each
+        for (const app of appsToAdd) {
+            let googleEventId = '';
+            const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
+
+            if (accessToken) {
+                const description = appServices.map(s => s.name).join(' + ');
+                const googleResponse = await googleService.createEvent(accessToken, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration });
+                if (googleResponse) googleEventId = googleResponse.id;
+            }
+            newAppsWithEvents.push({ ...app, googleEventId, durationTotal: totalDuration });
+        }
+
+        // 2. Batch Update Local State
+        const updatedApps = [...appointments, ...newAppsWithEvents];
         setAppointments(updatedApps);
         db.saveAppointments(updatedApps);
+
+        // 3. Batch Update Google Sheets
         if (accessToken && SHEET_ID) {
-            try {
-                const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                const mainSvc = appServices[0];
-                const rowData = [
-                    pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
-                    appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), 'Pendente', '', '', '', googleEventId
-                ];
-                await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
-                // Silent Sync to update IDs
-                handleSyncAppointments(accessToken, true);
-            } catch (e) { console.error(e); alert("Salvo no app, mas erro na planilha."); }
+            for (const app of newAppsWithEvents) {
+                try {
+                    const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const mainSvc = appServices[0];
+                    const rowData = [
+                        pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
+                        appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
+                        dateStr, timeStr, app.notes || '', (app.durationTotal || 60).toString(), 'Pendente', '', '', '', app.googleEventId
+                    ];
+                    await googleService.appendSheetValues(accessToken, SHEET_ID, 'Agendamento!A:T', rowData);
+                } catch (e) { console.error(e); }
+            }
+            // Silent Sync to update IDs just once after batch? Or maybe just rely on local for now.
+            // Let's do a sync to be safe, but it might race if sheets API is slow. 
+            // Better to sync.
+            handleSyncAppointments(accessToken, true);
         }
     };
 
