@@ -396,9 +396,9 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
     const monthlyChartData = useMemo(() => getMonthlyChartData(), [getMonthlyChartData]);
     const yearlyChartData = useMemo(() => getYearlyChartData(), [getYearlyChartData]);
 
-    const monthlyApps = appointments.filter(a => a.date.startsWith(selectedMonth));
+    const monthlyApps = appointments.filter(a => a.date.startsWith(selectedMonth) && a.status !== 'contato');
     const monthlyStats = calculateStats(monthlyApps);
-    const yearlyApps = appointments.filter(a => new Date(a.date).getFullYear() === selectedYear);
+    const yearlyApps = appointments.filter(a => new Date(a.date).getFullYear() === selectedYear && a.status !== 'contato');
     const yearlyStats = calculateStats(yearlyApps);
 
     // --- NEW STATS LOGIC ---
@@ -483,8 +483,8 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
             const currStart = new Date(y, m, 1); const currEnd = new Date(y, m + 1, 0);
             const prevStart = new Date(y, m - 1, 1); const prevEnd = new Date(y, m, 0);
 
-            const currApps = appointments.filter(a => { const d = new Date(a.date); return d >= currStart && d <= currEnd; });
-            const prevApps = appointments.filter(a => { const d = new Date(a.date); return d >= prevStart && d <= prevEnd; });
+            const currApps = appointments.filter(a => { const d = new Date(a.date); return d >= currStart && d <= currEnd && a.status !== 'contato'; });
+            const prevApps = appointments.filter(a => { const d = new Date(a.date); return d >= prevStart && d <= prevEnd && a.status !== 'contato'; });
 
             const cDays = countBusinessDays(currStart, currEnd);
             const pDays = countBusinessDays(prevStart, prevEnd);
@@ -2243,23 +2243,28 @@ const App: React.FC = () => {
     const handleEditAppointment = async (app: Appointment, client: Client, pet: Pet, appServices: Service[], manualDuration: number) => {
         const googleEventId = app.googleEventId; const totalDuration = manualDuration > 0 ? manualDuration : (appServices[0] ? appServices[0].durationMin : 60) + (appServices.length > 1 ? appServices.slice(1).reduce((acc, s) => acc + (s.durationMin || 0), 0) : 0);
         const updatedApp = { ...app, durationTotal: totalDuration };
-        if (accessToken && googleEventId) {
+        if (accessToken && googleEventId && app.status !== 'contato') {
             const description = appServices.map(s => s.name).join(' + ');
             await googleService.updateEvent(accessToken, googleEventId, { summary: `Banho/Tosa: ${pet.name}`, description: `${description}\nCliente: ${client.name}\nTel: ${client.phone}\nObs: ${app.notes}`, startTime: app.date, durationMin: totalDuration });
         }
         const updatedList = appointments.map(a => a.id === app.id ? updatedApp : a);
         setAppointments(updatedList); db.saveAppointments(updatedList);
-        if (app.id.startsWith('sheet_') && accessToken && SHEET_ID) {
+        // Robust sync: Only sync to Agendamento if specifically an Agendamento item (starts with sheet_)
+        // Ignored for 'contato' items to prevent overwriting Agendamento with Painel data
+        if (app.id.startsWith('sheet_') && accessToken && SHEET_ID && app.status !== 'contato') {
             try {
-                const parts = app.id.split('_'); const index = parseInt(parts[1]); const rowNumber = index + 1;
-                const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                const mainSvc = appServices[0];
-                const rowData = [
-                    pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
-                    appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
-                    dateStr, timeStr, app.notes || '', totalDuration.toString(), (app.status === 'nao_veio' ? 'Não Veio' : (app.paidAmount ? 'Pago' : 'Pendente')), '', app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '', app.paymentMethod || '', googleEventId
-                ];
-                await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`, rowData);
+                const parts = app.id.split('_'); const index = parseInt(parts[1]);
+                if (!isNaN(index)) {
+                    const rowNumber = index + 1; // Correct row mapping
+                    const d = new Date(app.date); const dateStr = d.toLocaleDateString('pt-BR'); const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const mainSvc = appServices[0];
+                    const rowData = [
+                        pet.name, client.name, client.phone, client.address, pet.breed, pet.size, pet.coat, mainSvc.name,
+                        appServices[1] ? appServices[1].name : '', appServices[2] ? appServices[2].name : '', appServices[3] ? appServices[3].name : '',
+                        dateStr, timeStr, app.notes || '', totalDuration.toString(), (app.status === 'nao_veio' ? 'Não Veio' : (app.paidAmount ? 'Pago' : 'Pendente')), '', app.paidAmount ? app.paidAmount.toString().replace('.', ',') : '', app.paymentMethod || '', googleEventId
+                    ];
+                    await googleService.updateSheetValues(accessToken, SHEET_ID, `Agendamento!A${rowNumber}:T${rowNumber}`, rowData);
+                }
             } catch (e) { console.error(e); alert("Erro ao atualizar planilha."); }
         }
     };
