@@ -1997,6 +1997,7 @@ const App: React.FC = () => {
     const [services, setServices] = useState<Service[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [costs, setCosts] = useState<CostItem[]>([]);
+    const [contactLogs, setContactLogs] = useState<{ clientId: string, date: string }[]>([]);
     const [isConfigured, setIsConfigured] = useState(true);
     const [accessToken, setAccessToken] = useState<string | null>(null);
     const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
@@ -2083,7 +2084,7 @@ const App: React.FC = () => {
 
     }, [settings.theme, settings.darkMode]);
 
-    const performFullSync = async (token: string) => { if (!SHEET_ID) return; setIsGlobalLoading(true); try { await handleSyncServices(token, true); await handleSyncClients(token, true); await handleSyncAppointments(token, true); await handleSyncCosts(token, true); } catch (e) { console.error("Auto Sync Failed", e); } finally { setIsGlobalLoading(false); } }
+    const performFullSync = async (token: string) => { if (!SHEET_ID) return; setIsGlobalLoading(true); try { await handleSyncServices(token, true); await handleSyncClients(token, true); await handleSyncAppointments(token, true); await handleSyncCosts(token, true); await handleSyncContactLogs(token, true); } catch (e) { console.error("Auto Sync Failed", e); } finally { setIsGlobalLoading(false); } }
 
     const initAuthLogic = () => { if ((window as any).google) { googleService.init(async (tokenResponse) => { if (tokenResponse && tokenResponse.access_token) { const token = tokenResponse.access_token; const expiresIn = tokenResponse.expires_in || 3599; localStorage.setItem(STORAGE_KEY_TOKEN, token); localStorage.setItem(STORAGE_KEY_EXPIRY, (Date.now() + (expiresIn * 1000)).toString()); setAccessToken(token); const profile = await googleService.getUserProfile(token); if (profile) { const user = { id: profile.id, name: profile.name, email: profile.email, picture: profile.picture }; setGoogleUser(user); localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user)); } performFullSync(token); } }); } };
     const handleLogout = () => { setAccessToken(null); setGoogleUser(null); setIsPinUnlocked(false); localStorage.removeItem(STORAGE_KEY_TOKEN); localStorage.removeItem(STORAGE_KEY_EXPIRY); localStorage.removeItem(STORAGE_KEY_USER); if ((window as any).google) (window as any).google.accounts.id.disableAutoSelect(); }
@@ -2280,6 +2281,8 @@ const App: React.FC = () => {
             // Append to "Painel de inativos" sheet - Try/Catch specific for sheet existence
             await googleService.appendSheetValues(accessToken, SHEET_ID, 'Painel de inativos!A:G', rowData);
             alert(`Cliente ${client.name} registrado como contactado!`);
+            // Update local logs immediately so UI refreshes
+            setContactLogs(prev => [...prev, { clientId: client.id, date: new Date().toISOString() }]);
         } catch (e) {
             console.error(e);
             alert("Erro ao salvar na planilha. Verifique se a aba 'Painel de inativos' existe.");
@@ -2329,7 +2332,7 @@ const App: React.FC = () => {
                 {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
-                {currentView === 'inactive_clients' && <InactiveClientsView clients={clients} appointments={appointments} services={services} onMarkContacted={handleMarkContacted} onBack={() => setCurrentView('menu')} />}
+                {currentView === 'inactive_clients' && <InactiveClientsView clients={clients} appointments={appointments} services={services} contactLogs={contactLogs} onMarkContacted={handleMarkContacted} onBack={() => setCurrentView('menu')} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
         </HashRouter>
