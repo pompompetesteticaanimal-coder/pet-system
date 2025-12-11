@@ -315,8 +315,9 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
             if (!hasTosa && app.additionalServiceIds) { app.additionalServiceIds.forEach(id => { const s = services.find(srv => srv.id === id); if (s && isTargetTosa(s.name)) hasTosa = true; }); }
             if (hasTosa) totalTosas++;
             const gross = calculateTotal(app, services);
-            // Strict Payment Check: Must have a method recorded
-            const isPaid = !!app.paymentMethod && app.paymentMethod.trim() !== '';
+            // Strict Payment Check: Must have a method recorded OR a positive paid amount
+            // FIX: Prioritize actual money received.
+            const isPaid = (!!app.paidAmount && app.paidAmount > 0) || (!!app.paymentMethod && app.paymentMethod.trim() !== '');
             if (isPaid) paidRevenue += gross; else pendingRevenue += gross;
         });
         const grossRevenue = paidRevenue + pendingRevenue;
@@ -671,6 +672,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
 
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
                         <StatCard title="Faturamento Total" value={`R$ ${metricData.current.grossRevenue.toFixed(0)}`} icon={Wallet} colorClass="bg-green-500" growth={getGrowth(metricData.current.grossRevenue, metricData.previous.grossRevenue)} />
+                        <StatCard title="Total Recebido" value={`R$ ${metricData.current.paidRevenue.toFixed(0)}`} icon={CheckCircle} colorClass="bg-emerald-500" growth={getGrowth(metricData.current.paidRevenue, metricData.previous.paidRevenue)} />
                         <StatCard title="Média / Dia" value={`R$ ${metricData.current.avgRevPerDay.toFixed(0)}`} icon={BarChart2} colorClass="bg-blue-500" growth={getGrowth(metricData.current.avgRevPerDay, metricData.previous.avgRevPerDay)} />
                         <StatCard title="Custo Diário (Ter-Sab)" value={`R$ ${metricData.current.dailyCost.toFixed(0)}`} icon={AlertCircle} colorClass="bg-red-500" />
                         <StatCard title="Ticket Médio / Pet" value={`R$ ${metricData.current.averageTicket.toFixed(0)}`} icon={DollarSign} colorClass="bg-purple-500" growth={getGrowth(metricData.current.averageTicket, metricData.previous.averageTicket)} />
@@ -688,6 +690,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
 
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
                         <StatCard title="Faturamento Total" value={`R$ ${metricData.current.grossRevenue.toFixed(0)}`} icon={Wallet} colorClass="bg-green-500" growth={getGrowth(metricData.current.grossRevenue, metricData.previous.grossRevenue)} />
+                        <StatCard title="Total Recebido" value={`R$ ${metricData.current.paidRevenue.toFixed(0)}`} icon={CheckCircle} colorClass="bg-emerald-500" growth={getGrowth(metricData.current.paidRevenue, metricData.previous.paidRevenue)} />
                         <StatCard title="Média / Dia" value={`R$ ${metricData.current.avgRevPerDay.toFixed(0)}`} icon={BarChart2} colorClass="bg-blue-500" growth={getGrowth(metricData.current.avgRevPerDay, metricData.previous.avgRevPerDay)} />
                         <StatCard title="Custo Diário (Ter-Sab)" value={`R$ ${metricData.current.dailyCost.toFixed(0)}`} icon={AlertCircle} colorClass="bg-red-500" />
                         <StatCard title="Ticket Médio / Pet" value={`R$ ${metricData.current.averageTicket.toFixed(0)}`} icon={DollarSign} colorClass="bg-purple-500" growth={getGrowth(metricData.current.averageTicket, metricData.previous.averageTicket)} />
@@ -705,6 +708,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
 
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8">
                         <StatCard title="Faturamento Total" value={`R$ ${(metricData.current.grossRevenue / 1000).toFixed(1)}k`} icon={Wallet} colorClass="bg-green-500" growth={getGrowth(metricData.current.grossRevenue, metricData.previous.grossRevenue)} />
+                        <StatCard title="Total Recebido" value={`R$ ${(metricData.current.paidRevenue / 1000).toFixed(1)}k`} icon={CheckCircle} colorClass="bg-emerald-500" growth={getGrowth(metricData.current.paidRevenue, metricData.previous.paidRevenue)} />
                         <StatCard title="Média / Dia" value={`R$ ${metricData.current.avgRevPerDay.toFixed(0)}`} icon={BarChart2} colorClass="bg-blue-500" growth={getGrowth(metricData.current.avgRevPerDay, metricData.previous.avgRevPerDay)} />
                         <StatCard title="Custo Diário (Ter-Sab)" value={`R$ ${metricData.current.dailyCost.toFixed(0)}`} icon={AlertCircle} colorClass="bg-red-500" />
                         <StatCard title="Ticket Médio" value={`R$ ${metricData.current.averageTicket.toFixed(0)}`} icon={DollarSign} colorClass="bg-purple-500" growth={getGrowth(metricData.current.averageTicket, metricData.previous.averageTicket)} />
