@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { ArrowLeft, MessageCircle, Calendar, AlertTriangle, Search, Filter, Phone, Check } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Calendar, AlertTriangle, Search, Filter, Phone, Check, ArrowDownAZ, ArrowUpAZ } from 'lucide-react';
 import { Client, Appointment, Service, Pet } from '../types';
 
 interface InactiveClientsViewProps {
@@ -13,6 +13,7 @@ interface InactiveClientsViewProps {
 export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ clients, appointments, onBack, onAddAppointment }) => {
     const [searchTerm, setSearchTerm] = React.useState('');
     const [minDays, setMinDays] = React.useState(15);
+    const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc');
 
 
     const inactiveClients = useMemo(() => {
@@ -49,9 +50,9 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
         })
             .filter((c): c is NonNullable<typeof c> => c !== null)
             .filter(c => c.daysAbsent >= minDays) // Filter > minDays
-            .sort((a, b) => b.daysAbsent - a.daysAbsent); // Sort mostly absent first
+            .sort((a, b) => sortOrder === 'desc' ? b.daysAbsent - a.daysAbsent : a.daysAbsent - b.daysAbsent); // Sort based on toggle
 
-    }, [clients, appointments, minDays]);
+    }, [clients, appointments, minDays, sortOrder]);
 
     const filteredList = inactiveClients.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -134,6 +135,13 @@ export const InactiveClientsView: React.FC<InactiveClientsViewProps> = ({ client
                             <option value={90}>90+ dias</option>
                         </select>
                     </div>
+                    <button
+                        onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                        className="p-3 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 active:scale-95 transition shadow-sm"
+                        title={sortOrder === 'asc' ? 'Ordenar Crescente (Menos tempo primeiro)' : 'Ordenar Decrescente (Mais tempo primeiro)'}
+                    >
+                        {sortOrder === 'asc' ? <ArrowDownAZ size={20} /> : <ArrowUpAZ size={20} />}
+                    </button>
                 </div>
             </div>
 
