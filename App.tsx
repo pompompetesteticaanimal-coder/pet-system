@@ -1235,7 +1235,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     const [editingAppId, setEditingAppId] = useState<string | null>(null);
     const [clientSearch, setClientSearch] = useState('');
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [selectedPet, setSelectedPet] = useState<string | null>(null); // Pet ID
+    const [selectedPetIds, setSelectedPetIds] = useState<string[]>([]); // Array of Pet IDs
     const [selectedService, setSelectedService] = useState<string>(''); // Service ID
     const [selectedAddServices, setSelectedAddServices] = useState<string[]>([]); // Array of Service IDs
     const [selectedDayForDetails, setSelectedDayForDetails] = useState<string | null>(null);
@@ -1261,7 +1261,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
 
     const resetForm = () => {
         setEditingApp(null); setEditingAppId(null);
-        setSelectedClient(null); setSelectedPet(null);
+        setSelectedClient(null); setSelectedPetIds([]);
         setSelectedService(''); setSelectedAddServices([]);
         setDate(new Date().toISOString().split('T')[0]); setTime('09:00');
         setManualDuration(0); setNotes('');
@@ -1273,7 +1273,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
         const client = clients.find(c => c.id === app.clientId);
         setEditingApp(app); setEditingAppId(app.id);
         setSelectedClient(client || null); setClientSearch(client?.name || '');
-        setSelectedPet(app.petId);
+        setSelectedPetIds(app.petId ? [app.petId] : []);
         setSelectedService(app.serviceId); setSelectedAddServices(app.additionalServiceIds || []);
         setDate(app.date.split('T')[0]); setTime(app.date.split('T')[1].substring(0, 5));
         setManualDuration(app.durationTotal || 0); setNotes(app.notes || '');
@@ -1281,67 +1281,109 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     };
 
     const handleSave = () => {
-        if (!selectedClient || !selectedPet || !selectedService || !date || !time) return;
-        const client = selectedClient; // selectedClient is now Client object
-        const pet = client?.pets.find(p => p.id === selectedPet);
+        if (!selectedClient || selectedPetIds.length === 0 || !selectedService || !date || !time) return;
+        const client = selectedClient;
         const mainSvc = services.find(s => s.id === selectedService);
         const addSvcs = selectedAddServices.map(id => services.find(s => s.id === id)).filter(s => s) as Service[];
 
-        if (client && pet && mainSvc) {
-            const newApp: Appointment = {
-                id: editingAppId || `local_${Date.now()}`,
-                clientId: client.id,
-                petId: pet.id,
-                serviceId: mainSvc.id,
-                additionalServiceIds: selectedAddServices,
-                date: `${date}T${time}:00`,
-                status: 'agendado',
-                notes: notes,
-                googleEventId: editingAppId ? appointments.find(a => a.id === editingAppId)?.googleEventId : undefined
-            };
+        if (client && mainSvc) {
+            const allAppsToCreate: Appointment[] = [];
 
-            if (editingAppId) {
-                const original = appointments.find(a => a.id === editingAppId);
-                newApp.paidAmount = original?.paidAmount;
-                newApp.paymentMethod = original?.paymentMethod;
-                onEdit(newApp, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
-            } else {
-                // Check if it's a Package Service to automate recurrence
+            // Iterate over ALL selected pets
+            selectedPetIds.forEach(petId => {
+                const pet = client.pets.find(p => p.id === petId);
+                if (!pet) return;
+
+                const newApp: Appointment = {
+                    id: editingAppId && selectedPetIds.length === 1 ? editingAppId : `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    clientId: client.id,
+                    petId: pet.id,
+                    serviceId: mainSvc.id,
+                    additionalServiceIds: selectedAddServices,
+                    date: `${date}T${time}:00`,
+                    status: 'agendado',
+                    notes: notes,
+                    googleEventId: editingAppId ? appointments.find(a => a.id === editingAppId)?.googleEventId : undefined
+                };
+
+                // Check Package Automation for THIS pet
                 const serviceNameLower = mainSvc.name.toLowerCase();
                 const isPackage = serviceNameLower.includes('pacote');
-                const appsToCreate: Appointment[] = [newApp];
 
-                if (isPackage) {
+                if (isPackage && !editingAppId) { // Only do automation on new creation, or careful on edit? Assuming new for now.
                     let iterations = 0;
                     let intervalDays = 0;
 
                     if (serviceNameLower.includes('mensal')) {
-                        iterations = 3; // +3 appointments = 4 total
+                        iterations = 3;
                         intervalDays = 7;
                     } else if (serviceNameLower.includes('quinzenal')) {
-                        iterations = 1; // +1 appointment = 2 total
+                        iterations = 1;
                         intervalDays = 14;
                     }
+
+                    allAppsToCreate.push(newApp);
 
                     if (iterations > 0) {
                         const baseDate = new Date(newApp.date);
                         for (let i = 1; i <= iterations; i++) {
                             const nextDate = new Date(baseDate);
                             nextDate.setDate(baseDate.getDate() + (i * intervalDays));
-
                             const isoDate = nextDate.toISOString().split('T')[0] + 'T' + time + ':00';
 
-                            appsToCreate.push({
+                            allAppsToCreate.push({
                                 ...newApp,
-                                id: `local_${Date.now()}_recur_${i}`,
+                                id: `local_${Date.now()}_ recur_${Math.random()}_${i}`,
                                 date: isoDate,
-                                googleEventId: undefined // New event
+                                googleEventId: undefined
                             });
                         }
                     }
+                } else {
+                    allAppsToCreate.push(newApp);
                 }
+            });
 
-                onAdd(appsToCreate, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
+            if (editingAppId && selectedPetIds.length === 1) {
+                // Single Edit Legacy Mode
+                const appToEdit = allAppsToCreate[0];
+                const original = appointments.find(a => a.id === editingAppId);
+                appToEdit.paidAmount = original?.paidAmount;
+                appToEdit.paymentMethod = original?.paymentMethod;
+                const pet = client.pets.find(p => p.id === appToEdit.petId)!;
+                onEdit(appToEdit, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
+            } else {
+                // Batch Add / Multi-Add
+                // We pass the FIRST pet for the notification logic inside onAdd, but onAdd handles array now so it iterates.
+                // We need to pass A pet for the signature, but handleAddAppointment uses the pet inside the app object loop if we changed logic?
+                // Actually handleAddAppointment (onAdd) signature is: (appOrApps, client, pet, services, duration).
+                // It uses 'pet' arg for Google Event Summary "Banho/Tosa: ${pet.name}".
+                // If we pass an array of apps for DIFFERENT pets, that 'pet' arg is insufficient/wrong for the batch description if they differ.
+                // FIX: We rely on handleAddAppointment to use app.petId to find the pet? 
+                // handleAddAppointment uses the PASSED 'pet' object.
+                // We should probably call onAdd multiple times if the pets differ, or update onAdd to look up pet from ID.
+                // OR, since my onAdd refactor loops `appsToAdd`, I can change onAdd to look up the pet for EACH app if I want correct descriptions.
+                // BUT `handleAddAppointment` code I wrote uses `pet.name` from the argument.
+
+                // RE-READ handleAddAppointment:
+                // const handleAddAppointment = async (appOrApps: ... , pet: Pet ...)
+                // for (const app of appsToAdd) { ... summary: `Banho/Tosa: ${pet.name}` ... }
+                // It uses the SAME pet name for all. This is WRONG for multi-pet.
+
+                // STRATEGY ADJUSTMENT:
+                // Instead of calling onAdd once with Mixed Pets, I should call onAdd ONCE PER PET with that pet's package-generated appointments.
+                // This ensures the `pet` argument matches the appointments.
+
+                selectedPetIds.forEach(petId => {
+                    const pet = client.pets.find(p => p.id === petId);
+                    if (!pet) return;
+
+                    // Filter the apps for this pet
+                    const appsForThisPet = allAppsToCreate.filter(a => a.petId === petId);
+                    if (appsForThisPet.length > 0) {
+                        onAdd(appsForThisPet, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
+                    }
+                });
             }
             resetForm();
         }
@@ -1371,7 +1413,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
     }, [clients, clientSearch]);
     const selectedClientData = selectedClient; // selectedClient is now Client object
     const pets = selectedClientData?.pets || [];
-    const selectedPetData = pets.find(p => p.id === selectedPet);
+    const selectedPetData = selectedClient?.pets.find(p => p.id === selectedPetIds[0]);
 
     const getApplicableServices = (category: 'principal' | 'adicional') => { if (!selectedPetData) return []; return services.filter(s => { const matchesCategory = s.category === category; const matchesSize = s.targetSize === 'Todos' || !s.targetSize || (selectedPetData.size && s.targetSize.toLowerCase().includes(selectedPetData.size.toLowerCase())); const matchesCoat = s.targetCoat === 'Todos' || !s.targetCoat || (selectedPetData.coat && s.targetCoat.toLowerCase().includes(selectedPetData.coat.toLowerCase())); return matchesCategory && matchesSize && matchesCoat; }); };
     const navigate = (direction: 'prev' | 'next') => {
@@ -1707,7 +1749,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                                         type="text"
                                                         placeholder="Nome, telefone ou pet..."
                                                         value={clientSearch}
-                                                        onChange={e => { setClientSearch(e.target.value); setSelectedClient(null); setSelectedPet(null); }}
+                                                        onChange={e => { setClientSearch(e.target.value); setSelectedClient(null); setSelectedPetIds([]); }}
                                                         className="w-full pl-11 pr-4 py-3.5 bg-gray-50 hover:bg-white focus:bg-white border border-gray-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 rounded-2xl text-sm font-semibold text-gray-700 outline-none transition-all placeholder:font-normal placeholder:text-gray-400"
                                                     />
                                                 </div>
@@ -1753,7 +1795,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                                                 <MapPin size={12} /> {selectedClient.address || 'Sem endereço'}
                                                             </div>
                                                         </div>
-                                                        <button onClick={() => { setSelectedClient(null); setSelectedPet(null); setClientSearch(''); }} className="ml-auto text-gray-400 hover:text-red-500 transition"><X size={16} /></button>
+                                                        <button onClick={() => { setSelectedClient(null); setSelectedPetIds([]); setClientSearch(''); }} className="ml-auto text-gray-400 hover:text-red-500 transition"><X size={16} /></button>
                                                     </div>
 
                                                     {/* Pet Selection Grid */}
@@ -1766,18 +1808,24 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                                                 return (
                                                                     <div
                                                                         key={p.id}
-                                                                        onClick={() => setSelectedPet(p.id)}
-                                                                        className={`group p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex items-center justify-between ${selectedPet === p.id
+                                                                        onClick={() => {
+                                                                            if (selectedPetIds.includes(p.id)) {
+                                                                                setSelectedPetIds(prev => prev.filter(id => id !== p.id));
+                                                                            } else {
+                                                                                setSelectedPetIds(prev => [...prev, p.id]);
+                                                                            }
+                                                                        }}
+                                                                        className={`group p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex items-center justify-between ${selectedPetIds.includes(p.id)
                                                                             ? 'border-brand-500 bg-brand-50 shadow-md transform scale-[1.02]'
                                                                             : 'border-gray-100 hover:border-brand-200 bg-white hover:bg-gray-50'}`}
                                                                     >
                                                                         <div className="flex items-center gap-4">
-                                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedPet === p.id ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-brand-100 group-hover:text-brand-500'}`}>
+                                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedPetIds.includes(p.id) ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-brand-100 group-hover:text-brand-500'}`}>
                                                                                 <PawPrint size={18} />
                                                                             </div>
                                                                             <div>
                                                                                 <div className="flex items-center gap-2">
-                                                                                    <h5 className={`font-bold text-sm ${selectedPet === p.id ? 'text-brand-900' : 'text-gray-700'}`}>{p.name}</h5>
+                                                                                    <h5 className={`font-bold text-sm ${selectedPetIds.includes(p.id) ? 'text-brand-900' : 'text-gray-700'}`}>{p.name}</h5>
                                                                                     {pAvg > 0 && (
                                                                                         <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 py-0.5 rounded-md border border-yellow-100">
                                                                                             <Star size={10} className="fill-yellow-400 text-yellow-400" />
@@ -1788,8 +1836,8 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                                                                 <p className="text-xs text-gray-500 font-medium">{p.breed} • {p.size || '?'} • {p.coat || '?'}</p>
                                                                             </div>
                                                                         </div>
-                                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPet === p.id ? 'border-brand-500 bg-brand-500' : 'border-gray-200'}`}>
-                                                                            {selectedPet === p.id && <Check size={12} className="text-white" strokeWidth={4} />}
+                                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedPetIds.includes(p.id) ? 'border-brand-500 bg-brand-500' : 'border-gray-200'}`}>
+                                                                            {selectedPetIds.includes(p.id) && <Check size={12} className="text-white" strokeWidth={4} />}
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -1807,10 +1855,10 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
 
                                 {/* RIGHT COLUMN: Services & Details (60%) */}
                                 <div className="lg:col-span-7 space-y-6 flex flex-col h-full bg-white rounded-3xl shadow-sm border border-gray-100/80 p-6 relative">
-                                    {!selectedPet && (
+                                    {!selectedPetIds.length && (
                                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-3xl">
                                             <div className="text-gray-400 font-medium flex items-center gap-2 bg-white px-6 py-3 rounded-full shadow-sm border border-gray-100">
-                                                <ArrowRightLeft size={16} /> Selecione um pet primeiro
+                                                <ArrowRightLeft size={16} /> Selecione pelo menos um pet
                                             </div>
                                         </div>
                                     )}
@@ -1963,7 +2011,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                                 <button onClick={resetForm} className="flex-1 md:flex-none px-8 py-4 rounded-xl text-gray-500 font-bold hover:bg-gray-100 transition-colors text-sm">Cancelar</button>
                                 <button
                                     onClick={handleSave}
-                                    disabled={!selectedClient || !selectedPet || !selectedService}
+                                    disabled={!selectedClient || selectedPetIds.length === 0 || !selectedService}
                                     className="flex-1 md:flex-none px-10 py-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-brand-200 hover:shadow-brand-300 hover:scale-[1.02] active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
                                 >
                                     <Check size={20} strokeWidth={3} />
