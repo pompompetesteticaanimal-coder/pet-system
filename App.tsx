@@ -74,10 +74,7 @@ const LoginScreen: React.FC<{ onLogin: (opts?: any) => void; onReset: () => void
                 <div className="w-full flex justify-center mb-6">
                     <img src={settings?.logoUrl || DEFAULT_LOGO_URL} alt="PomPomPet" className="w-48 h-auto object-contain rounded-lg" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2 z-20 relative">{settings?.appName || 'PomPomPet'}</h1>
-                <div className="absolute top-[80px] left-1/2 -translate-x-1/2 -z-10 opacity-100 pointer-events-none w-48 h-48 animate-float">
-                    <img src="/pets/welcome_dog.png" alt="Welcome Dog" className="w-full h-full object-contain" />
-                </div>
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">{settings?.appName || 'PomPomPet'}</h1>
                 <p className="text-gray-500 mb-8">Faça login para acessar sua agenda e clientes.</p>
                 <button
                     onClick={() => onLogin({ hint: userEmail })}
@@ -488,10 +485,7 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
         <div className="space-y-6 animate-fade-in pb-10" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
             {defaultTab === 'daily' ? null : (
                 <>
-                    <div className="flex justify-between items-center mb-6 relative">
-                        <h1 className="text-3xl font-bold text-gray-900 tracking-tight z-10">Faturamento</h1>
-                        <img src="/pets/grooming_scene.png" className="absolute top-[-20px] right-0 w-32 opacity-20 pointer-events-none animate-pulse-soft z-0" alt="Decoration" />
-                    </div>
+                    <div className="flex justify-between items-center mb-6"><h1 className="text-3xl font-bold text-gray-900 tracking-tight">Faturamento</h1></div>
                     <div className="bg-gray-100/50 p-1 rounded-2xl mb-8 flex gap-1 shadow-inner"><TabButton id="daily" label="Diário" icon={CalendarIcon} /><TabButton id="weekly" label="Semanal" icon={BarChart2} /><TabButton id="monthly" label="Mensal" icon={TrendingUp} /><TabButton id="yearly" label="Anual" icon={PieChartIcon} /></div>
                 </>
             )}
@@ -2177,6 +2171,15 @@ const App: React.FC = () => {
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
+
+            {/* Global Pet Mascot Overlay */}
+            <div className="fixed bottom-0 right-2 sm:right-6 z-[999] pointer-events-none select-none flex flex-col items-end opacity-90 hover:opacity-100 transition-opacity">
+                <img
+                    src="/pets/welcome_dog.png"
+                    alt="Pet Mascot"
+                    className="w-20 sm:w-28 h-auto object-contain transform translate-y-1 animate-float drop-shadow-2xl filter brightness-110"
+                />
+            </div>
         </HashRouter>
     );
 }
