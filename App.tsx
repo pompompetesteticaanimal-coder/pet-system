@@ -982,10 +982,72 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
 
 };
 
-const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; onDeleteClient: (id: string) => void; googleUser: GoogleUser | null; accessToken: string | null; }> = ({ clients, appointments, onDeleteClient }) => {
+const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; onDeleteClient: (id: string) => void; onUpdateClient: (client: Client) => void; googleUser: GoogleUser | null; accessToken: string | null; sheetId: string; }> = ({ clients, appointments, onDeleteClient, onUpdateClient, googleUser, accessToken, sheetId }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleCount, setVisibleCount] = useState(20);
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<Partial<Client>>({});
+
+    const startEditing = () => {
+        if (!selectedClient) return;
+        setEditForm({
+            name: selectedClient.name,
+            phone: selectedClient.phone,
+            address: selectedClient.address,
+            complement: selectedClient.complement
+        });
+        setIsEditing(true);
+    };
+
+    const handleSaveClient = async () => {
+        if (!selectedClient || !editForm.name) return;
+        const updatedClient = { ...selectedClient, ...editForm } as Client;
+
+        // 1. Update Sheet
+        if (accessToken && sheetId) {
+            try {
+                // We need to update ALL rows for this client.
+                // We can find rows by looking at pet IDs.
+                // Pet ID format: ${cleanPhone}_p_${rowIndex}
+                // Row Index is 0-based from the data slice? No, handleSyncClients used `idx` from forEach on `rows.slice(1)`.
+                // So Row Number in Sheet = idx + 2.
+                // Let's parse the pet IDs.
+
+                const updatePromises = selectedClient.pets.map(async (pet) => {
+                    const parts = pet.id.split('_p_');
+                    if (parts.length < 2) return;
+                    const idx = parseInt(parts[1]);
+                    if (isNaN(idx)) return;
+
+                    const row = idx + 2;
+                    // Columns: D(Name)=Col 4, F(Address)=Col 6, L(Complement)=Col 12. 
+                    // (A=1, B=2, C=3, D=4, E=5, F=6 ... L=12)
+                    // We need to update specific cells.
+                    // Google Sheets API batchUpdate is best, but here we use values.update per cell or range if contiguous.
+                    // Name is Col D (index 3 in 0-based array of row values? No, A1 notation uses 1-based col letters)
+
+                    // Let's update Name (D)
+                    await googleService.updateSheetValues(accessToken, sheetId, `CADASTRO!D${row}`, [[updatedClient.name]]);
+                    // Address (F)
+                    await googleService.updateSheetValues(accessToken, sheetId, `CADASTRO!F${row}`, [[updatedClient.address]]);
+                    // Complement (L)
+                    await googleService.updateSheetValues(accessToken, sheetId, `CADASTRO!L${row}`, [[updatedClient.complement || '']]);
+                });
+
+                await Promise.all(updatePromises);
+                alert('Cadastro atualizado com sucesso!');
+            } catch (e) {
+                console.error("Erro ao atualizar planilha:", e);
+                alert("Erro ao sincronizar com a planilha (mas salvo localmente).");
+            }
+        }
+
+        // 2. Update Local
+        onUpdateClient(updatedClient);
+        setSelectedClient(updatedClient);
+        setIsEditing(false);
+    };
 
     // Reset visible count when search changes
     useEffect(() => { setVisibleCount(20); }, [searchTerm]);
@@ -1094,60 +1156,113 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
                             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-400 via-rose-500 to-purple-600" />
 
                             <div className="p-8">
-                                <div className="flex justify-between items-start mb-8">
-                                    <div>
-                                        <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-1">{selectedClient!.name}</h2>
-                                        <div className="flex items-center gap-2">
-                                            <span className="px-3 py-1 bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-widest rounded-full border border-brand-100">Cliente</span>
-                                            <span className="text-xs text-gray-400 font-medium font-mono">#{selectedClient!.id.slice(-4)}</span>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => setSelectedClient(null)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all shadow-sm"><X size={20} /></button>
-                                </div>
-
-                                <div className="space-y-4 mb-8">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm border border-blue-100/50"><Phone size={22} className="drop-shadow-sm" /></div>
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Telefone</p>
-                                            <p className="text-lg font-bold text-gray-800">{selectedClient!.phone}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-sm border border-purple-100/50"><MapPin size={22} className="drop-shadow-sm" /></div>
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Endereço</p>
-                                            <p className="font-bold text-gray-800 leading-tight">{selectedClient!.address || 'Não informado'}</p>
-                                            {selectedClient!.complement && <p className="text-sm text-gray-500 mt-1 font-medium">{selectedClient!.complement}</p>}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-gray-50/50 rounded-3xl p-5 border border-gray-100 mb-8">
-                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <PawPrint size={14} /> Pets ({selectedClient!.pets.length})
-                                    </h3>
-                                    <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
-                                        {selectedClient!.pets.map(pet => (
-                                            <div key={pet.id} className="flex items-center gap-4 p-3 bg-white border border-gray-100/80 rounded-2xl shadow-sm">
-                                                <div className="w-12 h-12 bg-gradient-to-br from-brand-50 to-white text-brand-600 rounded-xl flex items-center justify-center font-black text-lg border border-brand-100 shadow-inner">{pet.name[0]}</div>
-                                                <div>
-                                                    <p className="font-bold text-gray-800 text-base">{pet.name}</p>
-                                                    <p className="text-xs text-gray-500 font-medium mt-0.5">{pet.breed} • {pet.size || '?'}</p>
+                                {!isEditing ? (
+                                    <>
+                                        <div className="flex justify-between items-start mb-8">
+                                            <div>
+                                                <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-1">{selectedClient!.name}</h2>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-3 py-1 bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-widest rounded-full border border-brand-100">Cliente</span>
+                                                    <span className="text-xs text-gray-400 font-medium font-mono">#{selectedClient!.id.slice(-4)}</span>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                            <button onClick={() => setSelectedClient(null)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all shadow-sm"><X size={20} /></button>
+                                        </div>
 
-                                <button
-                                    onClick={() => {
-                                        alert("Em breve: Edição completa do cliente.");
-                                    }}
-                                    className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg shadow-xl shadow-gray-200 hover:bg-black hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
-                                >
-                                    <Edit2 size={20} /> Editar Cliente
-                                </button>
+                                        <div className="space-y-4 mb-8">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm border border-blue-100/50"><Phone size={22} className="drop-shadow-sm" /></div>
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Telefone</p>
+                                                    <p className="text-lg font-bold text-gray-800">{selectedClient!.phone}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-sm border border-purple-100/50"><MapPin size={22} className="drop-shadow-sm" /></div>
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Endereço</p>
+                                                    <p className="font-bold text-gray-800 leading-tight">{selectedClient!.address || 'Não informado'}</p>
+                                                    {selectedClient!.complement && <p className="text-sm text-gray-500 mt-1 font-medium">{selectedClient!.complement}</p>}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-gray-50/50 rounded-3xl p-5 border border-gray-100 mb-8">
+                                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                <PawPrint size={14} /> Pets ({selectedClient!.pets.length})
+                                            </h3>
+                                            <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                                                {selectedClient!.pets.map(pet => (
+                                                    <div key={pet.id} className="flex items-center gap-4 p-3 bg-white border border-gray-100/80 rounded-2xl shadow-sm">
+                                                        <div className="w-12 h-12 bg-gradient-to-br from-brand-50 to-white text-brand-600 rounded-xl flex items-center justify-center font-black text-lg border border-brand-100 shadow-inner">{pet.name[0]}</div>
+                                                        <div>
+                                                            <p className="font-bold text-gray-800 text-base">{pet.name}</p>
+                                                            <p className="text-xs text-gray-500 font-medium mt-0.5">{pet.breed} • {pet.size || '?'}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={startEditing}
+                                            className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg shadow-xl shadow-gray-200 hover:bg-black hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <Edit2 size={20} /> Editar Cliente
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div className="animate-fade-in">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Editar Cadastro</h2>
+                                            <button onClick={() => setIsEditing(false)} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:bg-gray-100"><X size={20} /></button>
+                                        </div>
+
+                                        <div className="space-y-4 mb-8">
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Nome Completo</label>
+                                                <input
+                                                    value={editForm.name || ''}
+                                                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                                                    className="w-full bg-gray-50 border-none p-4 rounded-xl text-lg font-bold text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Telefone (Visualizar)</label>
+                                                <input
+                                                    value={editForm.phone || ''}
+                                                    disabled
+                                                    className="w-full bg-gray-100 border-none p-4 rounded-xl text-base font-bold text-gray-500 cursor-not-allowed"
+                                                    title="Para alterar o telefone, contate o suporte ou recadastre."
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Endereço</label>
+                                                <input
+                                                    value={editForm.address || ''}
+                                                    onChange={e => setEditForm({ ...editForm, address: e.target.value })}
+                                                    className="w-full bg-gray-50 border-none p-4 rounded-xl text-base font-medium text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold text-gray-400 uppercase ml-1 mb-1 block">Complemento</label>
+                                                <input
+                                                    value={editForm.complement || ''}
+                                                    onChange={e => setEditForm({ ...editForm, complement: e.target.value })}
+                                                    className="w-full bg-gray-50 border-none p-4 rounded-xl text-base font-medium text-gray-800 focus:ring-2 ring-brand-200 outline-none transition-all"
+                                                    placeholder="Apto, Bloco, etc."
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setIsEditing(false)} className="flex-1 py-4 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">Cancelar</button>
+                                            <button onClick={handleSaveClient} className="flex-1 py-4 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                                <Check size={20} strokeWidth={3} /> Salvar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>,
@@ -2256,6 +2371,12 @@ const App: React.FC = () => {
         if (!token || !SHEET_ID) { if (!silent) alert("Erro: Login ou ID da Planilha faltando."); return; } try { const rows = await googleService.getSheetValues(token, SHEET_ID, 'CADASTRO!A:O'); if (!rows || rows.length < 2) { if (!silent) alert("Planilha vazia ou aba 'CADASTRO' não encontrada."); return; } const clientsMap = new Map<string, Client>(); rows.slice(1).forEach((row: string[], index: number) => { const timestamp = row[1]; const clientName = row[3]; const phone = row[4]; const address = row[5]; const complement = row[11]; const petName = row[6]; const petBreed = row[7]; const petSize = row[8]; const petCoat = row[9]; const petNotes = row[10]; const petAge = row[12]; const petGender = row[13]; if (!clientName || !phone) return; const cleanPhone = phone.replace(/\D/g, ''); if (!clientsMap.has(cleanPhone)) { let createdIso = new Date().toISOString(); try { if (timestamp) { const [datePart, timePart] = timestamp.split(' '); const [day, month, year] = datePart.split('/'); if (year && month && day) createdIso = new Date(`${year}-${month}-${day}T${timePart || '00:00'}`).toISOString(); } } catch (e) { } clientsMap.set(cleanPhone, { id: cleanPhone, name: clientName, phone: phone, address: address || '', complement: complement || '', createdAt: createdIso, pets: [] }); } const client = clientsMap.get(cleanPhone)!; if (petName) { client.pets.push({ id: `${cleanPhone}_p_${index}`, name: petName, breed: petBreed || 'SRD', age: petAge || '', gender: petGender || '', size: petSize || '', coat: petCoat || '', notes: petNotes || '' }); } }); const newClientList = Array.from(clientsMap.values()); setClients(newClientList); db.saveClients(newClientList); if (!silent) alert(`${newClientList.length} clientes sincronizados!`); } catch (error) { console.error(error); if (!silent) alert("Erro ao sincronizar."); }
     };
     const handleDeleteClient = (id: string) => { const updated = clients.filter(c => c.id !== id); setClients(updated); db.saveClients(updated); };
+    const handleUpdateClient = (updatedClient: Client) => {
+        const updated = clients.map(c => c.id === updatedClient.id ? updatedClient : c);
+        setClients(updated);
+        // Also update db
+        db.saveClients(updated);
+    };
     const handleAddService = (service: Service) => { const updated = [...services, service]; setServices(updated); db.saveServices(updated); };
     const handleDeleteService = (id: string) => { const updated = services.filter(s => s.id !== id); setServices(updated); db.saveServices(updated); }
     const handleSyncServices = async (token: string, silent = false) => {
@@ -2503,7 +2624,7 @@ const App: React.FC = () => {
                     accessToken={accessToken}
                     sheetId={SHEET_ID}
                 />}
-                {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} googleUser={googleUser} accessToken={accessToken} />}
+                {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} onUpdateClient={handleUpdateClient} googleUser={googleUser} accessToken={accessToken} sheetId={SHEET_ID} />}
                 {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} onOpen={() => setIsScheduleModalOpen(true)} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
