@@ -41,6 +41,12 @@ const formatDateWithWeek = (dateStr: string) => {
 
 const calculateTotal = (app: Appointment, services: Service[]) => {
     if (app.status === 'cancelado' || app.status === 'nao_veio') return 0;
+
+    // Use actual paid amount if available and payment method is recorded
+    if (app.paymentMethod && app.paymentMethod.trim() !== '' && app.paidAmount !== undefined) {
+        return app.paidAmount;
+    }
+
     const mainSvc = services.find(s => s.id === app.serviceId);
     let total = mainSvc?.price || 0;
     app.additionalServiceIds?.forEach(id => {
