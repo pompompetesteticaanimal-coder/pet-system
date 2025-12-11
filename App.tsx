@@ -989,6 +989,10 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState<Partial<Client>>({});
 
+    // Pet Editing State
+    const [editingPetId, setEditingPetId] = useState<string | null>(null);
+    const [petEditForm, setPetEditForm] = useState<Partial<Pet>>({});
+
     const startEditing = () => {
         if (!selectedClient) return;
         setEditForm({
@@ -998,6 +1002,57 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
             complement: selectedClient.complement
         });
         setIsEditing(true);
+        setEditingPetId(null); // Close pet edit if open
+    };
+
+    const startEditingPet = (pet: Pet) => {
+        setPetEditForm({ ...pet });
+        setEditingPetId(pet.id);
+        setIsEditing(false); // Close client edit if open
+    };
+
+    const handleSavePet = async () => {
+        if (!selectedClient || !editingPetId || !petEditForm.name) return;
+
+        // Optimize: Optimistic Update
+        const updatedPets = selectedClient.pets.map(p => p.id === editingPetId ? { ...p, ...petEditForm } as Pet : p);
+        const updatedClient = { ...selectedClient, pets: updatedPets };
+
+        // 1. Update Sheet
+        if (accessToken && sheetId) {
+            try {
+                // Determine Row from Pet ID
+                const parts = editingPetId.split('_p_');
+                if (parts.length < 2) throw new Error("Invalid Pet ID format");
+                const idx = parseInt(parts[1]);
+                if (isNaN(idx)) throw new Error("Invalid Index");
+                const row = idx + 2;
+
+                // Sync specific cells for this pet
+                // Pet Name (G), Breed (H), Size (I), Coat (J), Notes (K), Age (M), Gender (N)
+                // A1 Refs: G${row}, H${row}, etc.
+
+                const updates = [
+                    { range: `CADASTRO!G${row}`, values: [[petEditForm.name]] },
+                    { range: `CADASTRO!H${row}`, values: [[petEditForm.breed || 'SRD']] },
+                    { range: `CADASTRO!I${row}`, values: [[petEditForm.size || '']] },
+                    { range: `CADASTRO!J${row}`, values: [[petEditForm.coat || '']] },
+                    { range: `CADASTRO!K${row}`, values: [[petEditForm.notes || '']] },
+                    { range: `CADASTRO!M${row}`, values: [[petEditForm.age || '']] },
+                    { range: `CADASTRO!N${row}`, values: [[petEditForm.gender || '']] },
+                ];
+
+                await Promise.all(updates.map(u => googleService.updateSheetValues(accessToken, sheetId, u.range, u.values)));
+            } catch (e) {
+                console.error("Failed to sync pet update", e);
+                alert("Salvo localmente. Erro ao sincronizar com planilha.");
+            }
+        }
+
+        // 2. Update Local
+        setSelectedClient(updatedClient);
+        onUpdateClient(updatedClient);
+        setEditingPetId(null);
     };
 
     const handleSaveClient = async () => {
@@ -1191,14 +1246,80 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
                                             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                                 <PawPrint size={14} /> Pets ({selectedClient!.pets.length})
                                             </h3>
-                                            <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                                                 {selectedClient!.pets.map(pet => (
-                                                    <div key={pet.id} className="flex items-center gap-4 p-3 bg-white border border-gray-100/80 rounded-2xl shadow-sm">
-                                                        <div className="w-12 h-12 bg-gradient-to-br from-brand-50 to-white text-brand-600 rounded-xl flex items-center justify-center font-black text-lg border border-brand-100 shadow-inner">{pet.name[0]}</div>
-                                                        <div>
-                                                            <p className="font-bold text-gray-800 text-base">{pet.name}</p>
-                                                            <p className="text-xs text-gray-500 font-medium mt-0.5">{pet.breed} • {pet.size || '?'}</p>
-                                                        </div>
+                                                    <div key={pet.id} className="relative">
+                                                        {editingPetId === pet.id ? (
+                                                            <div className="bg-white p-4 rounded-2xl border-2 border-brand-200 shadow-md space-y-3 animate-fade-in relative z-20">
+                                                                <div className="flex justify-between items-center mb-2">
+                                                                    <h4 className="font-bold text-gray-800 text-sm">Editar Pet</h4>
+                                                                    <button onClick={() => setEditingPetId(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <div className="col-span-2">
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Nome</label>
+                                                                        <input value={petEditForm.name || ''} onChange={e => setPetEditForm({ ...petEditForm, name: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm font-bold text-gray-800" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Raça</label>
+                                                                        <input value={petEditForm.breed || ''} onChange={e => setPetEditForm({ ...petEditForm, breed: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Idade</label>
+                                                                        <input value={petEditForm.age || ''} onChange={e => setPetEditForm({ ...petEditForm, age: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm" placeholder="Ex: 2 anos" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Porte</label>
+                                                                        <select value={petEditForm.size || ''} onChange={e => setPetEditForm({ ...petEditForm, size: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm">
+                                                                            <option value="Pequeno">Pequeno</option>
+                                                                            <option value="Médio">Médio</option>
+                                                                            <option value="Grande">Grande</option>
+                                                                            <option value="Gigante">Gigante</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Pelagem</label>
+                                                                        <select value={petEditForm.coat || ''} onChange={e => setPetEditForm({ ...petEditForm, coat: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm">
+                                                                            <option value="Curta">Curta</option>
+                                                                            <option value="Média">Média</option>
+                                                                            <option value="Longa">Longa</option>
+                                                                            <option value="Dupla">Dupla</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Sexo</label>
+                                                                        <select value={petEditForm.gender || ''} onChange={e => setPetEditForm({ ...petEditForm, gender: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm">
+                                                                            <option value="">Selecione</option>
+                                                                            <option value="Macho">Macho</option>
+                                                                            <option value="Fêmea">Fêmea</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="col-span-2">
+                                                                        <label className="text-[10px] uppercase font-bold text-gray-400 block mb-1">Obs</label>
+                                                                        <textarea rows={2} value={petEditForm.notes || ''} onChange={e => setPetEditForm({ ...petEditForm, notes: e.target.value })} className="w-full bg-gray-50 border border-gray-100 rounded-lg p-2 text-sm resize-none" />
+                                                                    </div>
+                                                                </div>
+                                                                <button onClick={handleSavePet} className="w-full py-2 bg-brand-600 text-white font-bold rounded-xl mt-2 hover:bg-brand-700 shadow-sm flex justify-center items-center gap-2"><Check size={16} /> Salvar Pet</button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-start gap-3 p-3 bg-white border border-gray-100/80 rounded-2xl shadow-sm hover:shadow-md transition-all group/item">
+                                                                <div className="w-10 h-10 bg-gradient-to-br from-brand-50 to-white text-brand-600 rounded-xl flex items-center justify-center font-black text-base border border-brand-100 shadow-inner flex-shrink-0">{pet.name[0]}</div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <p className="font-bold text-gray-800 text-base leading-tight">{pet.name}</p>
+                                                                        <button onClick={() => startEditingPet(pet)} className="text-gray-300 hover:text-brand-500 transition-colors p-1"><Settings size={16} /></button>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-gray-500 font-medium">
+                                                                        <span>{pet.breed}</span>
+                                                                        {pet.age && <span className="flex items-center gap-0.5"><Clock size={10} /> {pet.age}</span>}
+                                                                        {pet.size && <span className="flex items-center gap-0.5"><Activity size={10} /> {pet.size}</span>}
+                                                                        {pet.coat && <span>Pelagem {pet.coat}</span>}
+                                                                        {pet.gender && <span>{pet.gender === 'Macho' ? '♂️' : '♀️'}</span>}
+                                                                    </div>
+                                                                    {pet.notes && <p className="text-[11px] text-orange-600 bg-orange-50 px-2 py-1 rounded-md mt-2 border border-orange-100/50 italic leading-snug">{pet.notes}</p>}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
