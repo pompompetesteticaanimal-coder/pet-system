@@ -2173,11 +2173,11 @@ const App: React.FC = () => {
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
 
             {/* Global Pet Mascot Overlay */}
-            <div className="fixed bottom-0 right-2 sm:right-6 z-[999] pointer-events-none select-none flex flex-col items-end opacity-90 hover:opacity-100 transition-opacity">
+            <div className="fixed top-0 right-4 z-[999] pointer-events-none select-none flex flex-col items-end opacity-90 hover:opacity-100 transition-opacity">
                 <img
-                    src="/pets/welcome_dog.png"
+                    src="/pets/maltese.png"
                     alt="Pet Mascot"
-                    className="w-20 sm:w-28 h-auto object-contain transform translate-y-1 animate-float drop-shadow-2xl filter brightness-110"
+                    className="w-24 h-auto object-contain transform translate-y-2 animate-float drop-shadow-xl filter brightness-105"
                 />
             </div>
         </HashRouter>
