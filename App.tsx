@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { EvaluationModal } from './components/EvaluationModal';
 import { Layout } from './components/Layout';
+import { InactiveClientsView } from './components/InactiveClientsView'; // Import new component
 import { db } from './services/db';
 import { googleService, DEFAULT_CLIENT_ID } from './services/googleCalendar';
 import { Client, Service, Appointment, ViewState, Pet, GoogleUser, CostItem, AppSettings } from './types';
@@ -14,7 +15,7 @@ import {
     ChevronDown, ChevronRight, Search, AlertTriangle, ChevronLeft, Phone, Clock, FileText,
     Edit2, MoreVertical, Wallet, Filter, CreditCard, AlertCircle, CheckCircle, Loader2,
     Scissors, TrendingUp, AlertOctagon, BarChart2, TrendingDown, Calendar, PieChart as PieChartIcon,
-    ShoppingBag, Tag, User, Users, Key, Unlock, Home, Activity, Menu, ArrowRightLeft, Star, Moon
+    ShoppingBag, Tag, User, Users, Key, Unlock, Home, Activity, Menu, ArrowRightLeft, Star, Moon, UserX
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -1970,6 +1971,15 @@ const MenuView: React.FC<{ setView: (v: ViewState) => void, onOpenSettings: () =
                     <ChevronRight className="ml-auto text-gray-300" />
                 </button>
 
+                <button onClick={() => setView('inactive_clients')} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-6 active:scale-95 transition-all hover:shadow-md hover:-translate-y-1 group">
+                    <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform"><UserX size={32} /></div>
+                    <div className="text-left">
+                        <span className="block text-xl font-bold text-gray-800">Painel de Inativos</span>
+                        <span className="text-sm text-gray-400 font-medium">Clientes ausentes &gt; 15 dias</span>
+                    </div>
+                    <ChevronRight className="ml-auto text-gray-300" />
+                </button>
+
 
             </div>
 
@@ -2244,6 +2254,38 @@ const App: React.FC = () => {
         db.saveAppointments(updated);
     }
 
+    const handleMarkContacted = async (client: Client, daysInactive: number) => {
+        if (!accessToken || !SHEET_ID) {
+            alert("Erro: Não conectado ao Google Sheets.");
+            return;
+        }
+
+        try {
+            const pet = client.pets[0];
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('pt-BR');
+            const timeStr = now.toLocaleTimeString('pt-BR');
+
+            // Columns: DATA/hora, Pet, Cliente, TELEFONE, ENDERECO, ANIMAL/RACA, STATUS
+            const rowData = [
+                `${dateStr} ${timeStr}`,
+                pet?.name || '?',
+                client.name,
+                client.phone,
+                client.address,
+                `${pet?.name || ''}/${pet?.breed || ''}`,
+                'Contactado'
+            ];
+
+            // Append to "Painel de inativos" sheet - Try/Catch specific for sheet existence
+            await googleService.appendSheetValues(accessToken, SHEET_ID, 'Painel de inativos!A:G', rowData);
+            alert(`Cliente ${client.name} registrado como contactado!`);
+        } catch (e) {
+            console.error(e);
+            alert("Erro ao salvar na planilha. Verifique se a aba 'Painel de inativos' existe.");
+        }
+    };
+
     // --- PIN LOGIC Handlers ---
     const handlePinUnlock = (input: string) => { if (input === pin) { setIsPinUnlocked(true); return true; } return false; };
     const handleSetPin = (newPin: string) => { localStorage.setItem('petgestor_pin', newPin); setPin(newPin); setIsPinUnlocked(true); };
@@ -2287,6 +2329,7 @@ const App: React.FC = () => {
                 {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={(s) => accessToken && handleSyncServices(accessToken, s)} accessToken={accessToken} sheetId={SHEET_ID} />}
                 {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} googleUser={googleUser} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
+                {currentView === 'inactive_clients' && <InactiveClientsView clients={clients} appointments={appointments} services={services} onMarkContacted={handleMarkContacted} onBack={() => setCurrentView('menu')} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
         </HashRouter>
