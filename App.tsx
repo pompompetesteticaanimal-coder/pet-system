@@ -1069,7 +1069,7 @@ const ServiceManager: React.FC<{ services: Service[]; onAddService: (s: Service)
 
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={resetForm}>
-                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 animate-scale-up relative overflow-hidden ring-1 ring-white/50" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl space-y-6 relative overflow-hidden ring-1 ring-white/50" onClick={e => e.stopPropagation()}>
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-400 to-purple-500" />
                         <h3 className="text-2xl font-bold text-gray-900 tracking-tight">{editingService ? 'Editar Serviço' : 'Novo Serviço'}</h3>
                         <div className="space-y-4">
@@ -1393,7 +1393,6 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                 </div>
             </div>
         )
-
     };
 
     return (
