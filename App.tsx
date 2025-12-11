@@ -1640,9 +1640,7 @@ const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]
                         <button onClick={() => navigate('next')} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-600 transition"><ChevronRight size={18} /></button>
                     </div>
                 </div>
-                <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full md:w-auto bg-brand-600 text-white px-4 py-2.5 rounded-xl font-bold shadow-md shadow-brand-200 hover:bg-brand-700 active:scale-95 transition flex items-center justify-center gap-1.5 text-xs">
-                    <Plus size={18} /> Novo Agendamento
-                </button>
+
             </div>
 
             <div className="flex-1 min-h-0 relative overflow-hidden">
