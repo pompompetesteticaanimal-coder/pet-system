@@ -67,7 +67,6 @@ const PackageControlView: React.FC<PackageControlViewProps> = ({ clients, appoin
                         nextApp,
                         serviceName,
                         isRenewal: isRenewal(serviceName),
-                        isRenewal: isRenewal(serviceName),
                         type: getPackageType(serviceName),
                         petName: nextApp.petId ? client.pets.find(p => p.id === nextApp.petId)?.name : 'Pet',
                         pet: nextApp.petId ? client.pets.find(p => p.id === nextApp.petId) : null,
@@ -159,6 +158,22 @@ const PackageControlView: React.FC<PackageControlViewProps> = ({ clients, appoin
                         <span className="text-2xl font-bold">{stats.renewals}</span>
                     </div>
                     <p className={`text-xs font-bold uppercase tracking-wider ${filterType === 'renewal' ? 'text-orange-100' : 'text-gray-400'}`}>Para Renovar</p>
+                </div>
+
+                <div onClick={() => setFilterType('monthly')} className={`p-4 rounded-2xl border cursor-pointer transition-all ${filterType === 'monthly' ? 'bg-blue-500 text-white border-blue-500 shadow-lg scale-[1.02]' : 'bg-white border-gray-100 hover:border-blue-200'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                        <Calendar size={20} className={filterType === 'monthly' ? 'text-white' : 'text-blue-500'} />
+                        <span className="text-2xl font-bold">{stats.monthly}</span>
+                    </div>
+                    <p className={`text-xs font-bold uppercase tracking-wider ${filterType === 'monthly' ? 'text-blue-100' : 'text-gray-400'}`}>Mensais</p>
+                </div>
+
+                <div onClick={() => setFilterType('fortnightly')} className={`p-4 rounded-2xl border cursor-pointer transition-all ${filterType === 'fortnightly' ? 'bg-purple-500 text-white border-purple-500 shadow-lg scale-[1.02]' : 'bg-white border-gray-100 hover:border-purple-200'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                        <Calendar size={20} className={filterType === 'fortnightly' ? 'text-white' : 'text-purple-500'} />
+                        <span className="text-2xl font-bold">{stats.fortnightly}</span>
+                    </div>
+                    <p className={`text-xs font-bold uppercase tracking-wider ${filterType === 'fortnightly' ? 'text-purple-100' : 'text-gray-400'}`}>Quinzenais</p>
                 </div>
             </div>
 
