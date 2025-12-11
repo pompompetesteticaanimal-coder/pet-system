@@ -4,7 +4,8 @@ import { HashRouter } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { EvaluationModal } from './components/EvaluationModal';
 import { Layout } from './components/Layout';
-import { InactiveClientsView } from './components/InactiveClientsView'; // Import new component
+import { InactiveClientsView } from './components/InactiveClientsView';
+import { PetDetailsModal } from './components/PetDetailsModal';
 import { db } from './services/db';
 import { googleService, DEFAULT_CLIENT_ID } from './services/googleCalendar';
 import { Client, Service, Appointment, ViewState, Pet, GoogleUser, CostItem, AppSettings } from './types';
@@ -259,7 +260,7 @@ const DayDetailsModal: React.FC<{ isOpen: boolean; onClose: () => void; date: st
     );
 };
 
-const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; clients: Client[]; costs: CostItem[]; defaultTab?: 'daily' | 'weekly' | 'monthly' | 'yearly'; onRemovePayment: (app: Appointment) => void; onNoShow?: (app: Appointment) => void }> = ({ appointments, services, clients, costs, defaultTab = 'daily', onRemovePayment, onNoShow }) => {
+const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; clients: Client[]; costs: CostItem[]; defaultTab?: 'daily' | 'weekly' | 'monthly' | 'yearly'; onRemovePayment: (app: Appointment) => void; onNoShow?: (app: Appointment) => void; onViewPet?: (pet: Pet, client: Client) => void }> = ({ appointments, services, clients, costs, defaultTab = 'daily', onRemovePayment, onNoShow, onViewPet }) => {
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>(defaultTab);
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
@@ -605,7 +606,25 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
                                             <div className="flex-1 py-1 min-w-0">
                                                 <div className="flex justify-between items-start">
                                                     <div>
-                                                        <h4 className="font-bold text-gray-900 dark:text-white truncate">{pet?.name}</h4>
+                                                        <h4
+                                                            className="font-bold text-gray-900 dark:text-white truncate cursor-pointer hover:text-brand-600 transition-colors flex items-center gap-2"
+                                                            onClick={() => pet && client && onViewPet?.(pet, client)}
+                                                        >
+                                                            {pet?.name}
+                                                            {(() => {
+                                                                const pApps = appointments.filter(a => a.petId === pet?.id && a.rating);
+                                                                if (pApps.length > 0) {
+                                                                    const avg = pApps.reduce((acc, c) => acc + (c.rating || 0), 0) / pApps.length;
+                                                                    return (
+                                                                        <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 py-0.5 rounded-md border border-yellow-100">
+                                                                            <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                                                            <span className="text-[9px] font-bold text-yellow-700">{avg.toFixed(1)}</span>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()}
+                                                        </h4>
                                                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{client?.name}</p>
                                                     </div>
                                                     <div className="text-right">
@@ -746,7 +765,7 @@ const CostsView: React.FC<{ costs: CostItem[] }> = ({ costs }) => {
     );
 };
 
-const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onUpdateAppointment: (app: Appointment) => void; onRemovePayment: (app: Appointment) => void; onNoShow: (app: Appointment) => void; accessToken: string | null; sheetId: string; }> = ({ appointments, clients, services, onUpdateAppointment, onRemovePayment, onNoShow, accessToken, sheetId }) => {
+const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onUpdateAppointment: (app: Appointment) => void; onRemovePayment: (app: Appointment) => void; onNoShow: (app: Appointment) => void; onViewPet?: (pet: Pet, client: Client) => void; accessToken: string | null; sheetId: string; }> = ({ appointments, clients, services, onUpdateAppointment, onRemovePayment, onNoShow, onViewPet, accessToken, sheetId }) => {
     const getLocalISODate = (d: Date = new Date()) => { const year = d.getFullYear(); const month = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; };
     const [selectedDate, setSelectedDate] = useState(getLocalISODate()); const [editingId, setEditingId] = useState<string | null>(null); const [amount, setAmount] = useState(''); const [method, setMethod] = useState(''); const [isSaving, setIsSaving] = useState(false); const [activeTab, setActiveTab] = useState<'toReceive' | 'pending' | 'paid' | 'noShow'>('toReceive'); const [contextMenu, setContextMenu] = useState<{ x: number, y: number, app: Appointment } | null>(null);
     const [showEvaluationModal, setShowEvaluationModal] = useState(false);
@@ -861,7 +880,25 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
                 <div className="flex justify-between items-start mb-3 pl-3">
                     <div className="min-w-0 flex-1 pr-2">
                         <div className="flex items-center gap-2">
-                            <div className="text-lg font-bold text-gray-900 truncate tracking-tight">{pet?.name}</div>
+                            <div
+                                className="text-lg font-bold text-gray-900 truncate tracking-tight cursor-pointer hover:text-brand-600 transition-colors flex items-center gap-2"
+                                onClick={() => pet && client && onViewPet?.(pet, client)}
+                            >
+                                {pet?.name}
+                                {(() => {
+                                    const pApps = appointments.filter(a => a.petId === pet?.id && a.rating);
+                                    if (pApps.length > 0) {
+                                        const avg = pApps.reduce((acc, c) => acc + (c.rating || 0), 0) / pApps.length;
+                                        return (
+                                            <div className="flex items-center gap-0.5 bg-yellow-50 px-1.5 py-0.5 rounded-md border border-yellow-100">
+                                                <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                                <span className="text-[9px] font-bold text-yellow-700">{avg.toFixed(1)}</span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+                            </div>
                             {isPaid && <div className="bg-green-100 text-green-700 p-1 rounded-full"><CheckCircle size={12} /></div>}
                         </div>
                         <div className="text-xs font-medium text-gray-500 truncate mt-0.5">{client?.name}</div>
@@ -2003,6 +2040,7 @@ const App: React.FC = () => {
     const [googleUser, setGoogleUser] = useState<GoogleUser | null>(null);
     const [isGlobalLoading, setIsGlobalLoading] = useState(false);
     const [settings, setSettings] = useState<AppSettings>({ appName: 'PomPomPet', logoUrl: '', theme: 'rose', sidebarOrder: ['operacional', 'cadastros', 'gerencial'], darkMode: false });
+    const [petDetailsData, setPetDetailsData] = useState<{ pet: Pet, client: Client } | null>(null);
 
     // --- DARK MODE EFFECT ---
     useEffect(() => {
@@ -2346,13 +2384,14 @@ const App: React.FC = () => {
                 isLoading={isGlobalLoading}
                 onManualRefresh={async () => { if (accessToken) await performFullSync(accessToken); else window.location.reload(); }}
             >
-                {currentView === 'home' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="daily" onRemovePayment={handleRemovePayment} onNoShow={handleNoShow} />}
-                {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="monthly" onRemovePayment={handleRemovePayment} onNoShow={handleNoShow} />}
+                {currentView === 'home' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="daily" onRemovePayment={handleRemovePayment} onNoShow={handleNoShow} onViewPet={(pet, client) => setPetDetailsData({ pet, client })} />}
+                {currentView === 'revenue' && <RevenueView appointments={appointments} services={services} clients={clients} costs={costs} defaultTab="monthly" onRemovePayment={handleRemovePayment} onNoShow={handleNoShow} onViewPet={(pet, client) => setPetDetailsData({ pet, client })} />}
                 {currentView === 'costs' && <CostsView costs={costs} />}
                 {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services}
                     onUpdateAppointment={handleUpdateApp}
                     onRemovePayment={handleRemovePayment}
                     onNoShow={handleNoShow}
+                    onViewPet={(pet, client) => setPetDetailsData({ pet, client })}
                     accessToken={accessToken}
                     sheetId={SHEET_ID}
                 />}
@@ -2363,6 +2402,13 @@ const App: React.FC = () => {
                 {currentView === 'inactive_clients' && <InactiveClientsView clients={clients} appointments={appointments} services={services} contactLogs={contactLogs} onMarkContacted={handleMarkContacted} onBack={() => setCurrentView('menu')} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s)); }} />
+            <PetDetailsModal
+                isOpen={!!petDetailsData}
+                onClose={() => setPetDetailsData(null)}
+                pet={petDetailsData?.pet || null}
+                client={petDetailsData?.client || null}
+                appointments={appointments}
+            />
         </HashRouter>
     );
 }
