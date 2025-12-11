@@ -985,6 +985,7 @@ const PaymentManager: React.FC<{ appointments: Appointment[]; clients: Client[];
 const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; onDeleteClient: (id: string) => void; googleUser: GoogleUser | null; accessToken: string | null; }> = ({ clients, appointments, onDeleteClient }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [visibleCount, setVisibleCount] = useState(20);
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
     // Reset visible count when search changes
     useEffect(() => { setVisibleCount(20); }, [searchTerm]);
@@ -1021,7 +1022,7 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
             <div className="flex-1 overflow-y-auto min-h-0 pb-20 md:pb-0 px-1" onScroll={handleScroll}>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {visibleClients.map((client, index) => (
-                        <div key={client.id} style={{ animationDelay: `${index * 0.05}s` }} className="animate-slide-up bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-white/50 hover:shadow-glass hover:-translate-y-1 transition-all group relative overflow-hidden">
+                        <div key={client.id} onClick={() => setSelectedClient(client)} style={{ animationDelay: `${index * 0.05}s` }} className="cursor-pointer animate-slide-up bg-white/70 backdrop-blur-md p-5 rounded-3xl shadow-sm border border-white/50 hover:shadow-glass hover:-translate-y-1 transition-all group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-8 bg-brand-50/50 rounded-bl-[40px] -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform duration-500" />
                             <div className="flex justify-between items-start mb-4 relative z-10">
                                 <div className="min-w-0 pr-2">
@@ -1029,7 +1030,7 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
 
                                     <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-1 font-medium bg-white/50 px-2 py-1 rounded-lg w-fit shadow-sm border border-gray-100/50"><Phone size={12} className="text-brand-400" /> {client.phone}</p>
                                 </div>
-                                <button onClick={() => { if (confirm('Excluir?')) onDeleteClient(client.id); }} className="text-gray-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-xl transition shadow-sm bg-white border border-gray-100" title="Excluir Cliente"><Trash2 size={16} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); if (confirm('Excluir?')) onDeleteClient(client.id); }} className="text-gray-300 hover:text-red-500 p-2 hover:bg-red-50 rounded-xl transition shadow-sm bg-white border border-gray-100" title="Excluir Cliente"><Trash2 size={16} /></button>
                             </div>
                             <div className="space-y-2 relative z-10">
                                 {client.pets.map(pet => (
@@ -1086,6 +1087,73 @@ const ClientManager: React.FC<{ clients: Client[]; appointments: Appointment[]; 
                     )}
                 </div>
             </div>
+            {
+                selectedClient && createPortal(
+                    <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedClient(null)}>
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-scale-up relative ring-1 ring-white/50" onClick={e => e.stopPropagation()}>
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-400 via-rose-500 to-purple-600" />
+
+                            <div className="p-8">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div>
+                                        <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-1">{selectedClient!.name}</h2>
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-3 py-1 bg-brand-50 text-brand-600 text-[10px] font-bold uppercase tracking-widest rounded-full border border-brand-100">Cliente</span>
+                                            <span className="text-xs text-gray-400 font-medium font-mono">#{selectedClient!.id.slice(-4)}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setSelectedClient(null)} className="p-3 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-all shadow-sm"><X size={20} /></button>
+                                </div>
+
+                                <div className="space-y-4 mb-8">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm border border-blue-100/50"><Phone size={22} className="drop-shadow-sm" /></div>
+                                        <div>
+                                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Telefone</p>
+                                            <p className="text-lg font-bold text-gray-800">{selectedClient!.phone}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-sm border border-purple-100/50"><MapPin size={22} className="drop-shadow-sm" /></div>
+                                        <div>
+                                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-0.5">Endereço</p>
+                                            <p className="font-bold text-gray-800 leading-tight">{selectedClient!.address || 'Não informado'}</p>
+                                            {selectedClient!.complement && <p className="text-sm text-gray-500 mt-1 font-medium">{selectedClient!.complement}</p>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-50/50 rounded-3xl p-5 border border-gray-100 mb-8">
+                                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <PawPrint size={14} /> Pets ({selectedClient!.pets.length})
+                                    </h3>
+                                    <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                                        {selectedClient!.pets.map(pet => (
+                                            <div key={pet.id} className="flex items-center gap-4 p-3 bg-white border border-gray-100/80 rounded-2xl shadow-sm">
+                                                <div className="w-12 h-12 bg-gradient-to-br from-brand-50 to-white text-brand-600 rounded-xl flex items-center justify-center font-black text-lg border border-brand-100 shadow-inner">{pet.name[0]}</div>
+                                                <div>
+                                                    <p className="font-bold text-gray-800 text-base">{pet.name}</p>
+                                                    <p className="text-xs text-gray-500 font-medium mt-0.5">{pet.breed} • {pet.size || '?'}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => {
+                                        alert("Em breve: Edição completa do cliente.");
+                                    }}
+                                    className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-lg shadow-xl shadow-gray-200 hover:bg-black hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
+                                >
+                                    <Edit2 size={20} /> Editar Cliente
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )
+            }
         </div>
     );
 };
