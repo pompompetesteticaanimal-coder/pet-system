@@ -79,15 +79,52 @@ const BottomNavItem = ({
 };
 
 const GreetingBar = () => {
+  const [phase, setPhase] = React.useState<'greeting' | 'transition' | 'logo'>('greeting');
   const hour = new Date().getHours();
-  // "Destoante" style: Darker background, smaller text, but elegant
+
+  React.useEffect(() => {
+    // 1. Show Greeting for 4 seconds
+    const t1 = setTimeout(() => {
+      setPhase('transition'); // Slide out
+    }, 4000);
+
+    // 2. Wait for slide out (500ms) then show Logo
+    const t2 = setTimeout(() => {
+      setPhase('logo'); // Slide in
+    }, 4500);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
   let greeting = 'Bom dia';
   if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
   if (hour >= 18) greeting = 'Boa noite';
 
   return (
-    <div className="bg-gray-800 text-white py-1.5 px-4 text-[10px] font-medium tracking-wide flex justify-center items-center shadow-sm z-30 relative">
-      <span>{greeting}, <span className="font-bold text-brand-200">Deise</span>! ✨ Tenha um excelente trabalho.</span>
+    <div className="relative z-30 flex flex-col items-center w-full">
+      {/* Greeting Bar (Slides Up to vanish) */}
+      <div
+        className={`bg-gray-800 text-white w-full py-1.5 px-4 text-[10px] font-medium tracking-wide flex justify-center items-center shadow-sm absolute top-0 transition-all duration-700 ease-in-out ${phase === 'greeting' ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+          }`}
+      >
+        <span>{greeting}, <span className="font-bold text-brand-200">Deise</span>! ✨ Tenha um excelente trabalho.</span>
+      </div>
+
+      {/* Logo Bar (Slides Down to appear) */}
+      <div
+        className={`bg-white/90 backdrop-blur-md border-b border-gray-100 w-full py-3 px-6 flex justify-center items-center shadow-sm absolute top-0 transition-all duration-700 ease-out ${phase === 'logo' ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+          }`}
+      >
+        <span className="font-bold text-xl text-brand-600 tracking-tight font-serif">PomPomPet</span>
+      </div>
+
+      {/* Spacer to push content down depending on what's visible. 
+          The greeting is small (approx 28px), Logo is larger (approx 52px).
+          We transition the spacer height to avoid jerky content jumps, or just keep it 0 if absolute overlay is preferred.
+          User said "sobe e desaparece", implies overlay or pushing. 
+          Use a spacer with transition.
+      */}
+      <div className={`transition-all duration-700 w-full ${phase === 'greeting' ? 'h-[28px]' : phase === 'logo' ? 'h-[52px]' : 'h-0'}`} />
     </div>
   );
 };
