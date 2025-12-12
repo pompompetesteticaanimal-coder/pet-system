@@ -315,9 +315,9 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
             if (!hasTosa && app.additionalServiceIds) { app.additionalServiceIds.forEach(id => { const s = services.find(srv => srv.id === id); if (s && isTargetTosa(s.name)) hasTosa = true; }); }
             if (hasTosa) totalTosas++;
             const gross = calculateTotal(app, services);
-            // Strict Payment Check: Must have a method recorded with 'concluido' status OR a positive paid amount
-            // FIX: Prioritize actual money received.
-            const isPaid = (!!app.paidAmount && app.paidAmount > 0) || (app.status === 'concluido' && !!app.paymentMethod && app.paymentMethod.trim() !== '');
+            // Strict Payment Check: Payment Method is MANDATORY.
+            // Then checks if amount is paid OR status is concluded.
+            const isPaid = (!!app.paymentMethod && app.paymentMethod.trim() !== '') && ((!!app.paidAmount && app.paidAmount > 0) || app.status === 'concluido');
             if (isPaid) paidRevenue += gross; else pendingRevenue += gross;
         });
         const grossRevenue = paidRevenue + pendingRevenue;
@@ -602,8 +602,8 @@ const RevenueView: React.FC<{ appointments: Appointment[]; services: Service[]; 
                                     const mainSvc = services.find(s => s.id === app.serviceId);
                                     const addSvcs = app.additionalServiceIds?.map(id => services.find(srv => srv.id === id)).filter(x => x);
                                     const val = calculateTotal(app, services);
-                                    // Payment Fix: Must have valid payment info to be Paid
-                                    const isPaid = (!!app.paidAmount && app.paidAmount > 0) || (app.status === 'concluido' && !!app.paymentMethod && app.paymentMethod.trim() !== '');
+                                    // Payment Fix: Payment Method is MANDATORY.
+                                    const isPaid = (!!app.paymentMethod && app.paymentMethod.trim() !== '') && ((!!app.paidAmount && app.paidAmount > 0) || app.status === 'concluido');
 
                                     return (
                                         <div key={app.id} style={{ animationDelay: `${index * 0.05}s` }} className={`animate-slide-up bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-stretch gap-4 transition-all ${isPaid ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-gray-300'}`}>
