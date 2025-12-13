@@ -58,12 +58,7 @@ export interface CostItem {
   status: string;     // Col F (Status - Pago ou Vazio)
 }
 
-export interface GoogleUser {
-  id: string;
-  name: string;
-  email: string;
-  picture: string;
-}
+
 
 export interface AppSettings {
   appName: string;
