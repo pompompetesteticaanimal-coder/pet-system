@@ -342,7 +342,7 @@ export const RevenueView: React.FC<{ appointments: Appointment[]; services: Serv
                             ) : (
                                 dailyApps.sort((a, b) => a.date.localeCompare(b.date)).map((app, index) => {
                                     const client = clients.find(c => c.id === app.clientId);
-                                    const pet = client?.pets.find(p => p.id === app.petId);
+                                    const pet = client?.pets?.find(p => p.id === app.petId);
                                     const mainSvc = services.find(s => s.id === app.serviceId);
                                     const addSvcs = app.additionalServiceIds?.map(id => services.find(srv => srv.id === id)).filter(x => x);
                                     const val = calculateTotal(app, services);

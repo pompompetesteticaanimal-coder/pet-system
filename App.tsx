@@ -181,7 +181,7 @@ const App: React.FC = () => {
                 {currentView === 'payments' && <PaymentManager appointments={appointments} clients={clients} services={services}
                     onUpdateAppointment={(app) => {
                         const client = clients.find(c => c.id === app.clientId);
-                        const pet = client?.pets.find(p => p.id === app.petId);
+                        const pet = client?.pets?.find(p => p.id === app.petId);
                         if (client && pet) handleEditAppointment(app, client, pet, [], 0);
                     }}
                     onRemovePayment={handleRemovePayment}
