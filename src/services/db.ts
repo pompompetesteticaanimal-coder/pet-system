@@ -129,7 +129,6 @@ export const db = {
             notes: app.notes,
             duration_total: app.durationTotal,
             paid_amount: app.paidAmount,
-            paid_amount: app.paidAmount,
             payment_method: app.paymentMethod,
             rating: app.rating,
             rating_tags: app.ratingTags,
