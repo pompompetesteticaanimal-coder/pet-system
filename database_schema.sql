@@ -43,7 +43,9 @@ create table appointments (
   paid_amount numeric,
   payment_method text,
   rating integer,
-  rating_tags text[]
+  rating integer,
+  rating_tags text[],
+  payment_status text check (payment_status in ('pending', 'paid', 'refunded'))
 );
 
 -- COSTS

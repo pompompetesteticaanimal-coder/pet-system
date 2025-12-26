@@ -33,9 +33,9 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({ appointments, cl
     // Filters
     const dailyApps = appointments.filter(a => getAppLocalDateStr(a.date) === selectedDate && a.status !== 'cancelado');
     const noShowApps = dailyApps.filter(a => a.status === 'nao_veio');
-    const toReceiveApps = dailyApps.filter(a => (!a.paymentMethod || a.paymentMethod.trim() === '') && a.status !== 'nao_veio');
-    const paidApps = dailyApps.filter(a => a.paymentMethod && a.paymentMethod.trim() !== '');
-    const pendingApps = appointments.filter(a => { const appDate = getAppLocalDateStr(a.date); const isPast = appDate < getLocalISODate(); const isUnpaid = (!a.paymentMethod || a.paymentMethod.trim() === ''); return isPast && isUnpaid && a.status !== 'nao_veio' && a.status !== 'cancelado'; }).sort((a, b) => b.date.localeCompare(a.date));
+    const toReceiveApps = dailyApps.filter(a => (!a.paymentStatus || a.paymentStatus === 'pending') && a.status !== 'nao_veio');
+    const paidApps = dailyApps.filter(a => a.paymentStatus === 'paid');
+    const pendingApps = appointments.filter(a => { const appDate = getAppLocalDateStr(a.date); const isPast = appDate < getLocalISODate(); const isUnpaid = (!a.paymentStatus || a.paymentStatus === 'pending'); return isPast && isUnpaid && a.status !== 'nao_veio' && a.status !== 'cancelado'; }).sort((a, b) => b.date.localeCompare(a.date));
 
     const navigateDate = (days: number) => {
         setSlideDirection(days > 0 ? 'right' : 'left');
@@ -54,7 +54,12 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({ appointments, cl
     const handleSave = async (app: Appointment) => {
         setIsSaving(true);
         const finalAmount = parseFloat(amount);
-        const updatedApp = { ...app, paidAmount: finalAmount, paymentMethod: method as any };
+        const updatedApp: Appointment = {
+            ...app,
+            paidAmount: finalAmount,
+            paymentMethod: method as any,
+            paymentStatus: 'paid' // Explicitly mark as paid
+        };
 
         // Legacy Google Sheet Sync removed for SaaS
         // if (app.id.startsWith('sheet_') && accessToken && sheetId) { ... }
@@ -102,7 +107,7 @@ export const PaymentManager: React.FC<PaymentManagerProps> = ({ appointments, cl
         const mainSvc = services.find(srv => srv.id === app.serviceId);
         const addSvcs = app.additionalServiceIds?.map(id => services.find(s => s.id === id)).filter((x): x is Service => !!x) || [];
         const expected = calculateExpected(app);
-        const isPaid = !!app.paidAmount && !!app.paymentMethod;
+        const isPaid = app.paymentStatus === 'paid';
         const allServiceNames = [mainSvc?.name, ...addSvcs.map(s => s.name)].filter(n => n).join(' ').toLowerCase();
         let serviceBorderColor = 'border-l-sky-400';
         if (allServiceNames.includes('tesoura')) serviceBorderColor = 'border-l-pink-500';

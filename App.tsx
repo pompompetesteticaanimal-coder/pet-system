@@ -147,7 +147,7 @@ const App: React.FC = () => {
     };
 
     const handleRemovePayment = async (app: Appointment) => {
-        const updated = { ...app, paidAmount: 0, paymentMethod: '' as any };
+        const updated: Appointment = { ...app, paidAmount: 0, paymentMethod: '' as any, paymentStatus: 'pending' };
         await db.updateAppointment(updated);
         setAppointments(prev => prev.map(a => a.id === app.id ? updated : a));
     };

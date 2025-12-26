@@ -110,7 +110,8 @@ export const db = {
             paidAmount: a.paid_amount,
             paymentMethod: a.payment_method,
             rating: a.rating,
-            ratingTags: a.rating_tags
+            ratingTags: a.rating_tags,
+            paymentStatus: a.payment_status
             // googleEventId not present in DB currently
         }));
     },
@@ -128,9 +129,11 @@ export const db = {
             notes: app.notes,
             duration_total: app.durationTotal,
             paid_amount: app.paidAmount,
+            paid_amount: app.paidAmount,
             payment_method: app.paymentMethod,
             rating: app.rating,
-            rating_tags: app.ratingTags
+            rating_tags: app.ratingTags,
+            payment_status: app.paymentStatus
         };
         const { error } = await supabase.from('appointments').insert(dbApp);
         if (error) throw error;
@@ -149,7 +152,8 @@ export const db = {
             paid_amount: app.paidAmount,
             payment_method: app.paymentMethod,
             rating: app.rating,
-            rating_tags: app.ratingTags
+            rating_tags: app.ratingTags,
+            payment_status: app.paymentStatus
         };
         const { error } = await supabase.from('appointments').update(dbApp).eq('id', app.id);
         if (error) throw error;
