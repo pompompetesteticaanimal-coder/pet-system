@@ -8,7 +8,7 @@ import { Appointment, Client, Service, Pet } from '../types';
 import { formatDateWithWeek } from '../utils/helpers';
 import { DayDetailsModal } from './DayDetailsModal';
 
-export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onAdd: (app: Appointment | Appointment[], client: Client, pet: Pet, services: Service[], duration: number) => void; onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onUpdateStatus: (id: string, status: Appointment['status']) => void; onDelete: (id: string) => void; isOpen: boolean; onClose: () => void; onOpen: () => void; }> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete, isOpen, onClose, onOpen }) => {
+export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: Client[]; services: Service[]; onAdd: (app: Appointment | Appointment[], client: Client, pet: Pet, services: Service[], duration: number) => void; onEdit: (app: Appointment, client: Client, pet: Pet, services: Service[], duration: number) => void; onUpdateStatus: (id: string, status: Appointment['status']) => void; onDelete: (id: string) => void; isOpen: boolean; onClose: () => void; onOpen: () => void; preSelected?: { client: Client, pet?: Pet } | null; onViewPet: (pet: Pet, client: Client) => void; }> = ({ appointments, clients, services, onAdd, onEdit, onUpdateStatus, onDelete, isOpen, onClose, onOpen, preSelected, onViewPet }) => {
     const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [detailsApp, setDetailsApp] = useState<Appointment | null>(null);
@@ -41,6 +41,16 @@ export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: C
         const interval = setInterval(updateNow, 60000);
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (isOpen && preSelected) {
+            setSelectedClient(preSelected.client);
+            setClientSearch(preSelected.client.name);
+            if (preSelected.pet) {
+                setSelectedPetIds([preSelected.pet.id]);
+            }
+        }
+    }, [isOpen, preSelected]);
 
     const resetForm = () => {
         setEditingApp(null); setEditingAppId(null);
@@ -236,7 +246,11 @@ export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: C
                     </div>
                     {layoutItems.map((item: any, idx) => {
                         const app = item.app; const d = new Date(app.date); const startMin = (d.getHours() - 8) * 60 + d.getMinutes(); const height = (app.durationTotal || 60) * 2; const top = startMin * 2;
-                        return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />);
+                        return (<AppointmentCard key={app.id} app={app} style={{ animationDelay: `${idx * 0.02}s`, top: `${top}px`, height: `${height}px`, left: item.left, width: item.width, zIndex: item.zIndex }} onClick={(app: Appointment) => {
+                            const client = clients.find(c => c.id === app.clientId);
+                            const pet = client?.pets?.find(p => p.id === app.petId);
+                            if (client && pet) onViewPet(pet, client);
+                        }} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />);
                     })}
                     {nowMinutes >= 0 && nowMinutes <= 720 && (
                         <div className="absolute w-full border-t-2 border-red-500 border-dashed opacity-70 pointer-events-none z-20 flex items-center" style={{ top: `${nowMinutes * 2}px` }}><div className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-r shadow-sm absolute -top-2.5 left-0">Agora</div><div className="w-2 h-2 bg-red-500 rounded-full absolute -top-1 -right-1" /></div>
@@ -268,7 +282,11 @@ export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: C
                                 const mainApp = cluster.apps[0]; const count = cluster.apps.length; const top = cluster.start * 2; const height = (cluster.end - cluster.start) * 2;
                                 return (
                                     <div key={mainApp.id} style={{ top: `${top}px`, height: `${height}px`, width: '95%', left: '2.5%' }} className="absolute z-10 transition-all hover:z-20">
-                                        <AppointmentCard app={mainApp} style={{ width: '100%', height: '100%' }} onClick={setDetailsApp} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />
+                                        <AppointmentCard app={mainApp} style={{ width: '100%', height: '100%' }} onClick={(app: Appointment) => {
+                                            const client = clients.find(c => c.id === app.clientId);
+                                            const pet = client?.pets?.find(p => p.id === app.petId);
+                                            if (client && pet) onViewPet(pet, client);
+                                        }} onContext={(e: any, id: string) => setContextMenu({ x: e.clientX, y: e.clientY, appId: id })} />
                                         {count > 1 && (<div className="absolute -top-2 -right-2 bg-brand-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md animate-pop z-50 border-2 border-white" title={`${count} agendamentos neste horário`}>+{count - 1}</div>)}
                                     </div>
                                 );
@@ -318,36 +336,6 @@ export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: C
                     </div>
                 )}
             </div>
-
-            {detailsApp && createPortal((() => {
-                const client = clients.find(c => c.id === detailsApp.clientId);
-                const pet = client?.pets?.find(p => p.id === detailsApp.petId);
-                const s = services.find(srv => srv.id === detailsApp.serviceId);
-                const addSvcs = detailsApp.additionalServiceIds?.map(id => services.find(srv => srv.id === id)).filter(x => x);
-                const rating = detailsApp.rating;
-                const tags = detailsApp.ratingTags;
-                return (
-                    <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setDetailsApp(null)}>
-                        <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative animate-scale-up" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setDetailsApp(null)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 bg-gray-100 rounded-full p-1"><X size={20} /></button>
-                            {(rating || tags) && (
-                                <div className="flex justify-center flex-col items-center mb-6 bg-yellow-50/50 p-4 rounded-2xl border border-yellow-100">
-                                    <div className="flex text-yellow-500 mb-2 drop-shadow-sm">{[1, 2, 3, 4, 5].map(st => <Star key={st} size={24} className={(rating || 0) >= st ? "fill-current" : "text-gray-200"} strokeWidth={(rating || 0) >= st ? 0 : 2} />)}</div>
-                                    {tags && tags.length > 0 && (<div className="flex flex-wrap gap-2 justify-center">{tags.map(t => <span key={t} className="px-3 py-1 bg-white text-yellow-700 rounded-full text-xs font-bold shadow-sm border border-yellow-100">{t}</span>)}</div>)}
-                                </div>
-                            )}
-                            <div className="mb-6 text-center"><h3 className="text-2xl font-bold text-gray-800">{pet?.name}</h3><p className="text-gray-500 font-medium">{client?.name}</p></div>
-                            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 text-sm mb-6">
-                                <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><Phone size={16} /></div><span className="font-medium text-gray-700">{client?.phone}</span></div>
-                                <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center"><MapPin size={16} /></div><span className="font-medium text-gray-700 truncate">{client?.address} {client?.complement}</span></div>
-                                <div className="flex items-start gap-3"><div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center flex-shrink-0"><FileText size={16} /></div><span className="font-medium italic text-gray-600 pt-1">{(() => { let displayNote = detailsApp.notes || pet?.notes || 'Sem obs'; displayNote = displayNote.replace(/\[Avaliação: \d+\/5\]/g, '').replace(/\[Tags: .*?\]/g, '').trim(); return displayNote || 'Sem obs'; })()}</span></div>
-                            </div>
-                            <div className="mb-6"><h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Serviços</h4><div className="flex flex-wrap gap-2"><span className="px-3 py-1.5 bg-brand-100 text-brand-700 rounded-lg text-xs font-bold shadow-sm">{s?.name}</span>{addSvcs?.map(as => <span key={as?.id} className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold border border-gray-200">{as?.name}</span>)}</div></div>
-                            <button onClick={() => { setDetailsApp(null); handleStartEdit(detailsApp); }} className="w-full py-3.5 bg-brand-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-95 transition shadow-lg shadow-brand-200"><Edit2 size={18} /> Editar Agendamento</button>
-                        </div>
-                    </div>
-                );
-            })(), document.body)}
 
             {isOpen && createPortal(
                 <div className="fixed inset-0 bg-black/60 z-[60] flex items-end md:items-center justify-center md:p-6 backdrop-blur-sm animate-fade-in">

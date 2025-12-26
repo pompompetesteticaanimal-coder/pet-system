@@ -35,7 +35,8 @@ const App: React.FC = () => {
     const [settings, setSettings] = useState<AppSettings>({ appName: 'PomPomPet', logoUrl: '', theme: 'rose', sidebarOrder: ['operacional', 'cadastros', 'gerencial'], darkMode: false });
 
     // UI State
-    const [petDetailsData, setPetDetailsData] = useState<{ pet: Pet, client: Client } | null>(null);
+    const [petDetailsData, setPetDetailsData] = useState<{ pet: Pet, client: Client, showReactivate?: boolean } | null>(null);
+    const [preSelectedForSchedule, setPreSelectedForSchedule] = useState<{ client: Client, pet?: Pet } | null>(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
     // Initial Data Load (SaaS)
@@ -157,6 +158,12 @@ const App: React.FC = () => {
         setAppointments(prev => prev.map(a => a.id === app.id ? updated : a));
     };
 
+    const handleReactivatePackage = (pet: Pet, client: Client) => {
+        setPetDetailsData(null);
+        setPreSelectedForSchedule({ client, pet });
+        setIsScheduleModalOpen(true);
+    };
+
     // --- RENDER ---
 
     if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-brand-600" size={48} /></div>;
@@ -190,10 +197,10 @@ const App: React.FC = () => {
                 />}
                 {currentView === 'clients' && <ClientManager clients={clients} appointments={appointments} onDeleteClient={handleDeleteClient} onUpdateClient={handleUpdateClient} onAddClient={handleAddClient} />}
                 {currentView === 'services' && <ServiceManager services={services} onAddService={handleAddService} onDeleteService={handleDeleteService} onSyncServices={() => { }} />}
-                {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} onOpen={() => setIsScheduleModalOpen(true)} />}
+                {currentView === 'schedule' && <ScheduleManager appointments={appointments} clients={clients} services={services} onAdd={handleAddAppointment} onEdit={handleEditAppointment} onUpdateStatus={handleUpdateStatus} onDelete={handleDeleteAppointment} isOpen={isScheduleModalOpen} onClose={() => { setIsScheduleModalOpen(false); setPreSelectedForSchedule(null); }} onOpen={() => setIsScheduleModalOpen(true)} preSelected={preSelectedForSchedule} onViewPet={(pet, client) => setPetDetailsData({ pet, client })} />}
                 {currentView === 'menu' && <MenuView setView={setCurrentView} onOpenSettings={() => setIsSettingsOpen(true)} />}
                 {currentView === 'inactive_clients' && <InactiveClientsView clients={clients} appointments={appointments} services={services} contactLogs={[]} onMarkContacted={() => { }} onBack={() => setCurrentView('menu')} onViewPet={(pet, client) => setPetDetailsData({ pet, client })} />}
-                {currentView === 'packages' && <PackageControlView clients={clients} appointments={appointments} services={services} onViewPet={(pet, client) => setPetDetailsData({ pet, client })} />}
+                {currentView === 'packages' && <PackageControlView clients={clients} appointments={appointments} services={services} onViewPet={(pet, client, showReactivate) => setPetDetailsData({ pet, client, showReactivate })} />}
             </Layout>
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSave={(s) => { setSettings(s); /* persist settings */ }} />
             <PetDetailsModal
@@ -203,6 +210,8 @@ const App: React.FC = () => {
                 client={petDetailsData?.client || null}
                 appointments={appointments}
                 services={services}
+                showReactivate={petDetailsData?.showReactivate}
+                onReactivate={handleReactivatePackage}
             />
         </HashRouter>
     );
