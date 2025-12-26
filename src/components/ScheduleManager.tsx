@@ -73,7 +73,7 @@ export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: C
         if (client && mainSvc) {
             const allAppsToCreate: Appointment[] = [];
             selectedPetIds.forEach(petId => {
-                const pet = client.pets.find(p => p.id === petId);
+                const pet = client.pets?.find(p => p.id === petId);
                 if (!pet) return;
 
                 const newApp: Appointment = {
@@ -117,11 +117,11 @@ export const ScheduleManager: React.FC<{ appointments: Appointment[]; clients: C
                 const original = appointments.find(a => a.id === editingAppId);
                 appToEdit.paidAmount = original?.paidAmount;
                 appToEdit.paymentMethod = original?.paymentMethod;
-                const pet = client.pets.find(p => p.id === appToEdit.petId)!;
+                const pet = client.pets?.find(p => p.id === appToEdit.petId)!;
                 onEdit(appToEdit, client, pet, [mainSvc, ...addSvcs], parseInt(manualDuration as string));
             } else {
                 selectedPetIds.forEach(petId => {
-                    const pet = client.pets.find(p => p.id === petId);
+                    const pet = client.pets?.find(p => p.id === petId);
                     if (!pet) return;
                     const appsForThisPet = allAppsToCreate.filter(a => a.petId === petId);
                     if (appsForThisPet.length > 0) {
